@@ -72,6 +72,7 @@ export default function VisitorsList({
     roleSlug === "security" || permissions.includes("can_edit_visitor_status");
 
   const canRespondToVisitorStatus = roleSlug === "occupants";
+  
 
   // Safe pagination handlers
   const handleNextPage = () => {

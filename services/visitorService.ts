@@ -69,10 +69,10 @@ export const visitorService = {
   },
 
   // Export visitors by IDs
-  async exportVisitorsByIds(visitorIds: string[]): Promise<void> {
-    const token = await visitorService.getToken();
-
-    const response = await fetch(`${api_url}export/visitors/pdf`, {
+  // Update in visitorService.exportVisitorsByIds and exportVisitorsByDateRange
+  async exportVisitorsByIds(visitorIds: string[]) {
+    const token = await this.getToken();
+    const res = await fetch(`${api_url}export/visitors/pdf`, {
       method: "POST",
       headers: {
         Authorization: token ? `Bearer ${token}` : "",
@@ -81,19 +81,34 @@ export const visitorService = {
       body: JSON.stringify({ visitorIds }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Export failed with status: ${response.status}`);
+    const contentType = res.headers.get("content-type") || "";
+    const status = res.status;
+
+    if (!res.ok) {
+      let errBody = null;
+      try {
+        errBody = await res.json();
+      } catch (e) {
+        errBody = await res.text().catch(() => null);
+      }
+      return { ok: false, status, contentType, body: errBody };
     }
+
+    // FIX: Properly get arrayBuffer from response
+    const arrayBuffer = await res.arrayBuffer();
+
+    return {
+      ok: true,
+      status,
+      contentType,
+      arrayBuffer, // This should now be a proper ArrayBuffer
+      arrayBufferData: Array.from(new Uint8Array(arrayBuffer)), // Optional: Also include as array for debugging
+    };
   },
 
-  // Export visitors by date range
-  async exportVisitorsByDateRange(
-    fromDate: string,
-    toDate: string
-  ): Promise<void> {
-    const token = await visitorService.getToken();
-
-    const response = await fetch(`${api_url}export/visitors/pdf`, {
+  async exportVisitorsByDateRange(fromDate: string, toDate: string) {
+    const token = await this.getToken();
+    const res = await fetch(`${api_url}export/visitors/pdf`, {
       method: "POST",
       headers: {
         Authorization: token ? `Bearer ${token}` : "",
@@ -102,8 +117,20 @@ export const visitorService = {
       body: JSON.stringify({ fromDate, toDate }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Export failed with status: ${response.status}`);
+    const contentType = res.headers.get("content-type") || "";
+    const status = res.status;
+
+    if (!res.ok) {
+      let errBody = null;
+      try {
+        errBody = await res.json();
+      } catch (e) {
+        errBody = await res.text().catch(() => null);
+      }
+      return { ok: false, status, contentType, body: errBody };
     }
+
+    const arrayBuffer = await res.arrayBuffer();
+    return { ok: true, status, contentType, arrayBuffer };
   },
 };

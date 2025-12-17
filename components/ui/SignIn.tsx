@@ -1,11 +1,6 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import React from "react";
 import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import ApartmentAdminSignInForm from "../auth/SignInForm"; // adjust import path
-console.log("AsyncStorage exists? ->", !!AsyncStorage, "methods:", {
-  getItem: typeof AsyncStorage?.getItem,
-  setItem: typeof AsyncStorage?.setItem,
-});
 
 const ApartmentAdminSignInPage = () => {
   

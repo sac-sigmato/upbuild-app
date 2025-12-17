@@ -1,10 +1,9 @@
 "use client";
-// components/VisitorsFilters.tsx
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Picker } from "@react-native-picker/picker";
 import { useRouter } from "expo-router";
 import {
   Calendar,
+  ChevronDown,
   Download,
   Filter,
   Search,
@@ -13,6 +12,7 @@ import {
 } from "lucide-react-native";
 import React, { useState } from "react";
 import {
+  Dimensions,
   Modal,
   Platform,
   ScrollView,
@@ -48,6 +48,101 @@ type Props = {
 const nativeToast = (msg: string) => {
   if (Platform.OS === "android") ToastAndroid.show(msg, ToastAndroid.SHORT);
   else console.log(msg);
+};
+
+const { height: screenHeight } = Dimensions.get("window");
+
+// Custom Dropdown Component with Individual Modal
+const CustomDropdown = ({
+  label,
+  value,
+  items,
+  onValueChange,
+}: {
+  label: string;
+  value: string;
+  items: { label: string; value: string }[];
+  onValueChange: (value: string) => void;
+}) => {
+  const [showDropdownModal, setShowDropdownModal] = useState(false);
+
+  const selectedItem = items.find((item) => item.value === value) || items[0];
+
+  const handleSelect = (itemValue: string) => {
+    onValueChange(itemValue);
+    setShowDropdownModal(false);
+  };
+
+  return (
+    <View style={styles.dropdownContainer}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <TouchableOpacity
+        style={styles.dropdown}
+        onPress={() => setShowDropdownModal(true)}
+      >
+        <Text style={styles.dropdownText}>
+          {selectedItem?.label || "Select..."}
+        </Text>
+        <ChevronDown size={16} color="#6b7280" />
+      </TouchableOpacity>
+
+      {/* Dropdown Options Modal */}
+      <Modal
+        visible={showDropdownModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDropdownModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.dropdownModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowDropdownModal(false)}
+        >
+          <View style={styles.dropdownModalContent}>
+            <View style={styles.dropdownModalHeader}>
+              <Text style={styles.dropdownModalTitle}>{label}</Text>
+              <TouchableOpacity
+                onPress={() => setShowDropdownModal(false)}
+                style={styles.dropdownCloseButton}
+              >
+                <X size={20} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.dropdownModalScrollView}
+              showsVerticalScrollIndicator={true}
+            >
+              {items.map((item, index) => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[
+                    styles.dropdownModalOption,
+                    index === items.length - 1 &&
+                      styles.dropdownModalOptionLast,
+                  ]}
+                  onPress={() => handleSelect(item.value)}
+                >
+                  <Text
+                    style={[
+                      styles.dropdownModalOptionText,
+                      value === item.value &&
+                        styles.dropdownModalOptionTextSelected,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                  {value === item.value && (
+                    <View style={styles.selectedIndicator} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
 };
 
 export default function VisitorsFilters({
@@ -108,6 +203,7 @@ export default function VisitorsFilters({
     setSelectedAcceptStatus("");
     setSelectedLimit(10);
     setCurrentPage(1);
+    setShowFilterModal(false);
   };
 
   const applyFilters = () => {
@@ -121,6 +217,30 @@ export default function VisitorsFilters({
     selectedStatus ||
     selectedAcceptStatus ||
     selectedLimit !== 10;
+
+  // Dropdown options
+  const statusOptions = [
+    { label: "All Status", value: "" },
+    { label: "Awaiting", value: "Awaiting" },
+    { label: "Checked-In", value: "Checked-In" },
+    { label: "Checked-Out", value: "Checked-Out" },
+    { label: "Wrong Entry", value: "Wrong Entry" },
+  ];
+
+  const acceptStatusOptions = [
+    { label: "All Responses", value: "" },
+    { label: "Pending", value: "Pending" },
+    { label: "Accepted", value: "Accepted" },
+    { label: "Rejected", value: "Rejected" },
+    { label: "N/A", value: "N/A" },
+  ];
+
+  const limitOptions = [
+    { label: "10 items", value: "10" },
+    { label: "25 items", value: "25" },
+    { label: "50 items", value: "50" },
+    { label: "100 items", value: "100" },
+  ];
 
   return (
     <View style={styles.container}>
@@ -285,62 +405,30 @@ export default function VisitorsFilters({
               <View style={styles.modalSection}>
                 <Text style={styles.sectionTitle}>Status</Text>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Visitor Status</Text>
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={selectedStatus}
-                      onValueChange={setSelectedStatus}
-                      style={styles.picker}
-                      dropdownIconColor="#6b7280"
-                    >
-                      <Picker.Item label="All Status" value="" />
-                      <Picker.Item label="Awaiting" value="Awaiting" />
-                      <Picker.Item label="Checked-In" value="Checked-In" />
-                      <Picker.Item label="Checked-Out" value="Checked-Out" />
-                      <Picker.Item label="Wrong Entry" value="Wrong Entry" />
-                    </Picker>
-                  </View>
-                </View>
+                <CustomDropdown
+                  label="Visitor Status"
+                  value={selectedStatus}
+                  items={statusOptions}
+                  onValueChange={setSelectedStatus}
+                />
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Accept Status</Text>
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={selectedAcceptStatus}
-                      onValueChange={setSelectedAcceptStatus}
-                      style={styles.picker}
-                      dropdownIconColor="#6b7280"
-                    >
-                      <Picker.Item label="All Responses" value="" />
-                      <Picker.Item label="Pending" value="Pending" />
-                      <Picker.Item label="Accepted" value="Accepted" />
-                      <Picker.Item label="Rejected" value="Rejected" />
-                      <Picker.Item label="N/A" value="N/A" />
-                    </Picker>
-                  </View>
-                </View>
+                <CustomDropdown
+                  label="Accept Status"
+                  value={selectedAcceptStatus}
+                  items={acceptStatusOptions}
+                  onValueChange={setSelectedAcceptStatus}
+                />
               </View>
 
               {/* Display Settings */}
               <View style={styles.modalSection}>
                 <Text style={styles.sectionTitle}>Display</Text>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Items per page</Text>
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={selectedLimit}
-                      onValueChange={setSelectedLimit}
-                      style={styles.picker}
-                      dropdownIconColor="#6b7280"
-                    >
-                      <Picker.Item label="10 items" value={10} />
-                      <Picker.Item label="25 items" value={25} />
-                      <Picker.Item label="50 items" value={50} />
-                      <Picker.Item label="100 items" value={100} />
-                    </Picker>
-                  </View>
-                </View>
+                <CustomDropdown
+                  label="Items per page"
+                  value={selectedLimit.toString()}
+                  items={limitOptions}
+                  onValueChange={(value) => setSelectedLimit(Number(value))}
+                />
               </View>
             </ScrollView>
 
@@ -490,7 +578,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // Modal Styles
+  // Main Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
@@ -500,7 +588,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: "80%",
+    maxHeight: screenHeight * 0.85,
   },
   modalHeader: {
     flexDirection: "row",
@@ -519,7 +607,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   modalScrollView: {
-    maxHeight: 400,
+    maxHeight: screenHeight * 0.85 - 140,
   },
   modalSection: {
     padding: 20,
@@ -538,9 +626,6 @@ const styles = StyleSheet.create({
   },
   dateInputContainer: {
     flex: 1,
-  },
-  inputGroup: {
-    marginBottom: 16,
   },
   inputLabel: {
     fontSize: 14,
@@ -564,16 +649,95 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#374151",
   },
-  pickerContainer: {
+
+  // Dropdown Styles
+  dropdownContainer: {
+    marginBottom: 16,
+  },
+  dropdown: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderWidth: 1,
     borderColor: "#d1d5db",
     borderRadius: 8,
-    overflow: "hidden",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     backgroundColor: "#fff",
+    minHeight: 44,
   },
-  picker: {
-    height: 44,
+  dropdownText: {
+    fontSize: 14,
+    color: "#374151",
+    flex: 1,
   },
+
+  // Dropdown Modal Styles
+  dropdownModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  dropdownModalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    width: "90%",
+    maxHeight: "70%",
+    elevation: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+  },
+  dropdownModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  dropdownModalTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e293b",
+  },
+  dropdownCloseButton: {
+    padding: 4,
+  },
+  dropdownModalScrollView: {
+    maxHeight: 300,
+  },
+  dropdownModalOption: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dropdownModalOptionLast: {
+    borderBottomWidth: 0,
+  },
+  dropdownModalOptionText: {
+    fontSize: 16,
+    color: "#374151",
+    flex: 1,
+  },
+  dropdownModalOptionTextSelected: {
+    color: "#1eb88c",
+    fontWeight: "600",
+  },
+  selectedIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#1eb88c",
+  },
+
   modalFooter: {
     flexDirection: "row",
     padding: 20,

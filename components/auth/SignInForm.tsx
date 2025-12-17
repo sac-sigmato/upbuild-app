@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 // import your zustand / store hook — adjust path
+import { socketInstance } from "@/sockets/socketInstance";
 import { useRouter } from "expo-router";
 import { useUserStore } from "../../store/useUserStore";
 import { api_url } from "../../utils/apiLocalhost";
@@ -127,12 +128,14 @@ const SignInForm = () => {
             // ignore if store shape differs
           }
           setLocalUser(userObj);
+         
+          
 
-          toast("Logged in successfully!");
+          // toast("Logged in successfully!");
           // navigate to dashboard
           // adjust route name as per your navigator
           // cast to any to satisfy router typing for dynamic/unlisted routes
-          router.push("/visitors" as any);
+          // router.push("/visitors" as any);
         } else {
           // multiple roles -> save pending and navigate to role select
           await AsyncStorage.setItem(
@@ -210,6 +213,12 @@ const SignInForm = () => {
 
         setLocalUser(userObj);
         toast("Logged in Successfully!");
+         socketInstance.emit("register-user", {
+           userId: userObj._id,
+           apartmentId: userObj.apartment,
+           userType: userObj.userType, // owner or tenant or occupant
+         });
+         console.log("Socket emitted");
         router.push("/visitors" as any);
       } else {
         await AsyncStorage.setItem(
