@@ -1,15 +1,25 @@
-// app/_layout.tsx
 import { Buffer } from "buffer";
+import * as Notifications from "expo-notifications";
 import { Stack } from "expo-router";
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import Toast from "react-native-toast-message";
 
 import AuthenticatedSocketHandlers from "@/sockets/AuthenticatedSocketHandlers";
 import SocketConnectionProvider from "@/sockets/SocketConnectionProvider";
-import { useUserStore } from "@/store/useUserStore"; // Zustand / Context
+import { useUserStore } from "@/store/useUserStore";
+import { setupAndroidNotifications } from "./notifications";
 
 global.Buffer = Buffer;
+
+/* 🔔 REQUIRED: Notification handler (TOP LEVEL ONLY) */
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
 function LoadingFallback() {
   return (
@@ -22,6 +32,11 @@ function LoadingFallback() {
 
 export default function RootLayout() {
   const isLoggedIn = useUserStore((s) => s.isLoggedIn);
+
+  /* ✅ CORRECT PLACE for useEffect */
+  useEffect(() => {
+    setupAndroidNotifications();
+  }, []);
 
   return (
     <Suspense fallback={<LoadingFallback />}>
@@ -38,10 +53,8 @@ export default function RootLayout() {
           />
         </Stack>
 
-        {/* ✅ ONLY after login */}
         {isLoggedIn && <AuthenticatedSocketHandlers />}
 
-        {/* ✅ Global toast */}
         <Toast />
       </SocketConnectionProvider>
     </Suspense>

@@ -16,9 +16,11 @@ import {
 } from "react-native";
 // import your zustand / store hook — adjust path
 import { socketInstance } from "@/sockets/socketInstance";
+import { registerForPush } from "@/utils/registerForPush";
 import { useRouter } from "expo-router";
 import { useUserStore } from "../../store/useUserStore";
 import { api_url } from "../../utils/apiLocalhost";
+
 const SignInForm = () => {
   const router = useRouter();
   const navigation = useNavigation();
@@ -100,17 +102,17 @@ const SignInForm = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "OTP login failed");
 
-      // CASE 1: Approved user with token and userDetails
+      // ✅ CASE 1: Approved user
       if (
         data.token &&
         data.userDetails &&
         data.userDetails.isApproved !== false
       ) {
-        // store token
         await AsyncStorage.setItem("token", data.token);
 
         if (data.userDetails.roles?.length === 1) {
           const role = data.userDetails.roles[0];
+
           const userObj = {
             _id: data.userDetails._id,
             name: data.userDetails.name,
@@ -124,20 +126,20 @@ const SignInForm = () => {
           // update global store
           try {
             if (typeof setUser === "function") setUser(userObj);
-          } catch (e) {
-            // ignore if store shape differs
-          }
-          setLocalUser(userObj);
-         
-          
+          } catch (e) {}
 
-          // toast("Logged in successfully!");
-          // navigate to dashboard
-          // adjust route name as per your navigator
-          // cast to any to satisfy router typing for dynamic/unlisted routes
-          // router.push("/visitors" as any);
+          setLocalUser(userObj);
+
+          /* 🔔 REGISTER PUSH TOKEN (NEW) */
+          await registerForPush({
+            api_url,
+            jwt: data.token,
+            apartmentId: userObj.apartment,
+            flatId: userObj.flat,
+          });
+
+          // navigation handled elsewhere
         } else {
-          // multiple roles -> save pending and navigate to role select
           await AsyncStorage.setItem(
             "pendingUser",
             JSON.stringify(data.userDetails)
@@ -145,9 +147,8 @@ const SignInForm = () => {
           navigation.navigate("SelectRole" as never);
         }
 
-        // CASE 2: Unapproved user
+        // ❌ CASE 2: Unapproved user (NO push token)
       } else if (data.userDetails && data.userDetails.isApproved === false) {
-        // still may have token — store if present
         if (data.token) await AsyncStorage.setItem("token", data.token);
 
         const unapproved = {
@@ -165,7 +166,6 @@ const SignInForm = () => {
         toast("OTP verified! Awaiting approval.");
         navigation.navigate("SelectState" as never);
       } else {
-        // fallback
         toast("Login succeeded but response shape unexpected.");
       }
     } catch (err: any) {
@@ -192,11 +192,11 @@ const SignInForm = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Login failed");
 
-      // store token
       if (data.token) await AsyncStorage.setItem("token", data.token);
 
       if (data.userDetails.roles?.length === 1) {
         const role = data.userDetails.roles[0];
+
         const userObj = {
           _id: data.userDetails._id,
           name: data.userDetails.name,
@@ -213,12 +213,26 @@ const SignInForm = () => {
 
         setLocalUser(userObj);
         toast("Logged in Successfully!");
-         socketInstance.emit("register-user", {
-           userId: userObj._id,
-           apartmentId: userObj.apartment,
-           userType: userObj.userType, // owner or tenant or occupant
-         });
-         console.log("Socket emitted");
+        // 🔥 REGISTER PUSH TOKEN HERE (ONLY ONCE)
+        try {
+          await registerForPush({
+            api_url,
+            jwt: data.token,
+            apartmentId: userObj.apartment,
+            flatId: userObj.flat,
+          });
+        } catch (e) {
+          console.warn("⚠️ Push registration failed", e);
+        }
+
+
+        /* 🔌 SOCKET REGISTER */
+        socketInstance.emit("register-user", {
+          userId: userObj._id,
+          apartmentId: userObj.apartment,
+          userType: userObj.userType,
+        });
+
         router.push("/visitors" as any);
       } else {
         await AsyncStorage.setItem(
@@ -233,6 +247,155 @@ const SignInForm = () => {
       setLoading(false);
     }
   };
+
+  // const handleVerifyOtpAndLogin = async () => {
+  //   if (!otp.trim()) {
+  //     Alert.alert("Error", "Please enter the OTP.");
+  //     return;
+  //   }
+
+  //   setLoading(true);
+  //   try {
+  //     const res = await fetch(`${api_url}apartment/user/login/otp`, {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({ identifier, otp }),
+  //     });
+
+  //     const data = await res.json();
+  //     if (!res.ok) throw new Error(data.message || "OTP login failed");
+
+  //     // CASE 1: Approved user with token and userDetails
+  //     if (
+  //       data.token &&
+  //       data.userDetails &&
+  //       data.userDetails.isApproved !== false
+  //     ) {
+  //       // store token
+  //       await AsyncStorage.setItem("token", data.token);
+
+  //       if (data.userDetails.roles?.length === 1) {
+  //         const role = data.userDetails.roles[0];
+  //         const userObj = {
+  //           _id: data.userDetails._id,
+  //           name: data.userDetails.name,
+  //           email: data.userDetails.email,
+  //           userType: role.roleId,
+  //           roleName: role.slug,
+  //           apartment: role.apartmentId,
+  //           flat: role.flatId,
+  //         };
+
+  //         // update global store
+  //         try {
+  //           if (typeof setUser === "function") setUser(userObj);
+  //         } catch (e) {
+  //           // ignore if store shape differs
+  //         }
+  //         setLocalUser(userObj);
+
+  //         toast("Logged in successfully!");
+  //         // navigate to dashboard
+  //         // adjust route name as per your navigator
+  //         // cast to any to satisfy router typing for dynamic/unlisted routes
+  //         router.push("/visitors" as any);
+  //       } else {
+  //         // multiple roles -> save pending and navigate to role select
+  //         await AsyncStorage.setItem(
+  //           "pendingUser",
+  //           JSON.stringify(data.userDetails)
+  //         );
+  //         navigation.navigate("SelectRole" as never);
+  //       }
+
+  //       // CASE 2: Unapproved user
+  //     } else if (data.userDetails && data.userDetails.isApproved === false) {
+  //       // still may have token — store if present
+  //       if (data.token) await AsyncStorage.setItem("token", data.token);
+
+  //       const unapproved = {
+  //         _id: data.userDetails._id,
+  //         name: "Unapproved User",
+  //         email: data.userDetails.email || "",
+  //         contactNumber: data.userDetails.contactNumber,
+  //       };
+
+  //       try {
+  //         if (typeof setUser === "function") setUser(unapproved);
+  //       } catch (e) {}
+
+  //       setLocalUser(unapproved);
+  //       toast("OTP verified! Awaiting approval.");
+  //       navigation.navigate("SelectState" as never);
+  //     } else {
+  //       // fallback
+  //       toast("Login succeeded but response shape unexpected.");
+  //     }
+  //   } catch (err: any) {
+  //     Alert.alert("Error", err.message || "Something went wrong.");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
+  // const handlePasswordLogin = async () => {
+  //   if (!identifier || !password) {
+  //     Alert.alert("Error", "Please fill all fields.");
+  //     return;
+  //   }
+
+  //   setLoading(true);
+  //   try {
+  //     const response = await fetch(`${api_url}apartment/user/login`, {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({ email: identifier, password }),
+  //     });
+
+  //     const data = await response.json();
+  //     if (!response.ok) throw new Error(data.message || "Login failed");
+
+  //     // store token
+  //     if (data.token) await AsyncStorage.setItem("token", data.token);
+
+  //     if (data.userDetails.roles?.length === 1) {
+  //       const role = data.userDetails.roles[0];
+  //       const userObj = {
+  //         _id: data.userDetails._id,
+  //         name: data.userDetails.name,
+  //         email: data.userDetails.email,
+  //         userType: role.roleId,
+  //         roleName: role.slug,
+  //         apartment: role.apartmentId,
+  //         flat: role.flatId,
+  //       };
+
+  //       try {
+  //         if (typeof setUser === "function") setUser(userObj);
+  //       } catch (e) {}
+
+  //       setLocalUser(userObj);
+  //       toast("Logged in Successfully!");
+  //        socketInstance.emit("register-user", {
+  //          userId: userObj._id,
+  //          apartmentId: userObj.apartment,
+  //          userType: userObj.userType, // owner or tenant or occupant
+  //        });
+  //        console.log("Socket emitted");
+  //       router.push("/visitors" as any);
+  //     } else {
+  //       await AsyncStorage.setItem(
+  //         "pendingUser",
+  //         JSON.stringify(data.userDetails)
+  //       );
+  //       navigation.navigate("SelectRole" as never);
+  //     }
+  //   } catch (error: any) {
+  //     Alert.alert("Error", error?.message || "Something went wrong!");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>

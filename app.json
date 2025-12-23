@@ -8,7 +8,10 @@
     "scheme": "upbuildapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-
+    "notification": {
+      "icon": "./assets/images/icon.png",
+      "color": "#1eb88c"
+    },
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -31,8 +34,8 @@
       "usesIcloudStorage": true,
       "bundleIdentifier": "com.yourcompany.upbuildapp"
     },
-
     "android": {
+      "useNextNotificationsApi": true,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -44,20 +47,20 @@
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.POST_NOTIFICATIONS",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.MANAGE_EXTERNAL_STORAGE"
       ],
       "package": "com.yourcompany.upbuildapp"
     },
-
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-
     "plugins": [
       "expo-router",
+      "expo-notifications",
       [
         "expo-splash-screen",
         {
@@ -79,10 +82,16 @@
         }
       ]
     ],
-
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2858fa9d-74b6-4938-a85d-a32fdd49fff3"
+      }
+    },
+    "owner": "sac18"
   }
 }
