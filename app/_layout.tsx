@@ -45,11 +45,11 @@ export default function RootLayout() {
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen
             name="visitors/index"
-            options={{ title: "Visitors", headerShown: true }}
+            options={{ title: "Visitors", headerShown: false }}
           />
           <Stack.Screen
             name="visitors/add/index"
-            options={{ title: "Add Visitor", headerShown: true }}
+            options={{ title: "Add Visitor", headerShown: false }}
           />
         </Stack>
 

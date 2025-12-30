@@ -36,6 +36,8 @@
     },
     "android": {
       "useNextNotificationsApi": true,
+      "package": "com.yourcompany.upbuildapp",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -51,8 +53,7 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.MANAGE_EXTERNAL_STORAGE"
-      ],
-      "package": "com.yourcompany.upbuildapp"
+      ]
     },
     "web": {
       "output": "static",

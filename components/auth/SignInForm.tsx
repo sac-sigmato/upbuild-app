@@ -12,7 +12,6 @@ import {
   TextInput,
   ToastAndroid,
   TouchableOpacity,
-  View,
 } from "react-native";
 // import your zustand / store hook — adjust path
 import { socketInstance } from "@/sockets/socketInstance";
@@ -398,59 +397,38 @@ const SignInForm = () => {
   // };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView
+      contentContainerStyle={styles.page}
+      keyboardShouldPersistTaps="handled"
+    >
       {/* Logo */}
-      <View style={styles.logoContainer}>
-        <Image
-          source={require("@/assets/LOGO.png")} // adjust path
-          style={styles.logo}
-          resizeMode="contain"
-        />
-      </View>
+      <Image
+        source={require("@/assets/logo.png")}
+        style={styles.logo}
+        resizeMode="contain"
+      />
 
-      {/* Back button */}
-      {(otpSent || showPasswordField) && (
-        <TouchableOpacity
-          onPress={() => {
-            setOtpSent(false);
-            setOtp("");
-            setShowPasswordField(false);
-          }}
-        >
-          <Text style={styles.backButton}>← Back</Text>
-        </TouchableOpacity>
-      )}
+      {/* Title */}
+      <Text style={styles.title}>Sign In</Text>
 
-      {/* Identifier Field */}
-      <Text style={styles.label}>*Email or Phone</Text>
+      {/* Email / Phone */}
       <TextInput
         style={styles.input}
-        placeholder="Enter email or phone number"
+        placeholder="*Email or Phone number"
+        placeholderTextColor="#6B7280"
         value={identifier}
         onChangeText={setIdentifier}
         editable={!loading}
-        keyboardType="email-address"
         autoCapitalize="none"
       />
 
-      {remainingAttempts !== null && otpSent && (
-        <Text style={styles.infoText}>
-          You have {remainingAttempts} OTP attempt
-          {remainingAttempts !== 1 && "s"} remaining within{" "}
-          {otpWindow !== null
-            ? `${otpWindow} minute${otpWindow !== 1 ? "s" : ""}`
-            : "the configured window"}
-          .
-        </Text>
-      )}
-
-      {/* OTP Field */}
+      {/* OTP MODE */}
       {!showPasswordField && otpSent && (
         <>
-          <Text style={styles.label}>*Enter OTP</Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter 4-digit OTP"
+            placeholder="*Enter OTP"
+            placeholderTextColor="#6B7280"
             value={otp}
             onChangeText={setOtp}
             keyboardType="numeric"
@@ -459,157 +437,132 @@ const SignInForm = () => {
         </>
       )}
 
-      {/* Password Field */}
+      {/* PASSWORD MODE */}
       {showPasswordField && (
         <>
-          <Text style={styles.label}>*Password</Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter your password"
+            placeholder="*Password"
+            placeholderTextColor="#6B7280"
             value={password}
             onChangeText={setPassword}
-            secureTextEntry={!showPassword}
+            secureTextEntry
             editable={!loading}
-            autoCapitalize="none"
           />
-          <TouchableOpacity
-            onPress={() => setShowPassword(!showPassword)}
-            disabled={loading}
-          >
-            <Text style={styles.toggleText}>
-              {showPassword ? "Hide Password" : "Show Password"}
-            </Text>
+
+          <TouchableOpacity>
+            <Text style={styles.forgotText}>Forgot Password?</Text>
           </TouchableOpacity>
         </>
       )}
 
-      {/* Buttons */}
-      {!showPasswordField ? (
-        <>
-          {!otpSent ? (
-            <TouchableOpacity
-              style={[styles.button, loading && styles.disabled]}
-              onPress={handleSendOtp}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Send OTP</Text>
-              )}
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.button, loading && styles.disabled]}
-              onPress={handleVerifyOtpAndLogin}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Verify & Login</Text>
-              )}
-            </TouchableOpacity>
-          )}
+      {/* Primary Button */}
+      <TouchableOpacity
+        style={styles.button}
+        onPress={
+          showPasswordField
+            ? handlePasswordLogin
+            : otpSent
+            ? handleVerifyOtpAndLogin
+            : handleSendOtp
+        }
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>
+            {showPasswordField
+              ? "Sign In"
+              : otpSent
+              ? "Verify & Login"
+              : "Next"}
+          </Text>
+        )}
+      </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => setShowPasswordField(true)}
-            disabled={loading}
-          >
-            <Text style={styles.linkText}>Login with Password</Text>
-          </TouchableOpacity>
-        </>
-      ) : (
-        <TouchableOpacity
-          style={[styles.button, loading && styles.disabled]}
-          onPress={handlePasswordLogin}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Login</Text>
-          )}
-        </TouchableOpacity>
-      )}
+      {/* Switch Login Mode */}
+      <TouchableOpacity
+        onPress={() => {
+          setShowPasswordField(!showPasswordField);
+          setPassword("");
+          setOtp("");
+          setOtpSent(false);
+        }}
+        disabled={loading}
+      >
+        <Text style={styles.linkText}>
+          {showPasswordField ? "Login with OTP" : "Login with Password"}
+        </Text>
+      </TouchableOpacity>
     </ScrollView>
   );
+
+
 };
 
 export default SignInForm;
-
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 20,
-  },
-  logoContainer: {
+  page: {
+    width:  "100%",
+    height: "100%",
+    flexGrow: 1,
+    backgroundColor: "#ffffff",
     alignItems: "center",
-    marginBottom: 20,
+    paddingHorizontal: 24,
+    paddingTop: 80,
   },
+
   logo: {
-    width: 200,
-    height: 60,
+    width: 120,
+    height: 30,
+    marginBottom: 40,
   },
-  backButton: {
-    color: "#1eb88c",
-    fontWeight: "bold",
-    marginBottom: 10,
-  },
-  label: {
-    color: "#3b414e",
-    fontSize: 16,
+
+  title: {
+    fontSize: 18,
     fontWeight: "600",
-    marginTop: 10,
+    color: "#15803D",
+    marginBottom: 28,
   },
+
   input: {
+    width: "100%",
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: "#9CA3AF",
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginTop: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    marginBottom: 14,
   },
-  infoText: {
-    color: "#666",
+
+  forgotText: {
+    alignSelf: "flex-end",
     fontSize: 13,
-    marginTop: 5,
+    color: "#15803D",
+    marginBottom: 24,
   },
+
   button: {
-    backgroundColor: "#1eb88c",
-    borderRadius: 25,
-    paddingVertical: 12,
-    marginTop: 16,
+    width: "100%",
+    backgroundColor: "#22B884",
+    paddingVertical: 14,
+    borderRadius: 8,
     alignItems: "center",
-  },
-  disabled: {
-    backgroundColor: "#aaa",
-  },
-  buttonText: {
-    color: "#fff",
-    fontWeight: "bold",
-  },
-  secondaryButton: {
-    borderWidth: 1,
-    borderColor: "#3b414e",
-    borderRadius: 25,
-    paddingVertical: 12,
     marginTop: 10,
-    alignItems: "center",
   },
-  secondaryText: {
-    color: "#3b414e",
+
+  buttonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
     fontWeight: "600",
   },
+
   linkText: {
-    textAlign: "center",
-    color: "#007bff",
-    textDecorationLine: "underline",
-    marginTop: 10,
-  },
-  toggleText: {
-    color: "#007bff",
-    marginTop: 5,
+    marginTop: 20,
+    fontSize: 13,
+    color: "#15803D",
+    fontWeight: "500",
   },
 });

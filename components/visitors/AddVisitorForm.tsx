@@ -376,7 +376,7 @@ export default function AddVisitorForm() {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 16,
+    // padding: 16,
     paddingBottom: 80,
     backgroundColor: "#f3f6f7",
   },

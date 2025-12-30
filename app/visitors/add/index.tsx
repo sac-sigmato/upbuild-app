@@ -28,11 +28,11 @@ export default function Add() {
         backgroundColor: "#f8f9fa",
       }}
       contentContainerStyle={{
-        padding: 16,
+        paddingTop: 16,
       }}
     >
       <View
-        style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}
+        style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}
       >
         <TouchableOpacity
           onPress={handleGoBack}
@@ -55,11 +55,6 @@ export default function Add() {
       </View>
 
       <View
-        style={{
-          backgroundColor: "white",
-          padding: 24,
-          borderRadius: 24,
-        }}
       >
         <AddVisitorForm />
       </View>

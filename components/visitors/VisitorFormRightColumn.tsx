@@ -418,12 +418,13 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, color: "#374151", marginBottom: 6, fontWeight: "600" },
   input: {
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: "#fff",
+    borderColor: "#E5E7EB",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: "#FFFFFF",
   },
+
   inputText: { color: "#111" },
   readonlyBox: {
     padding: 12,

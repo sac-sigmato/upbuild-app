@@ -39,7 +39,13 @@ export async function registerForPush({
   /* 3️⃣ REAL DEVICE TOKEN (FCM) */
   const token = await Notifications.getDevicePushTokenAsync();
 
-  console.log("🔥 REAL FCM TOKEN:", token.data);
+  alert(`🔥 TOKEN OBJECT: ${JSON.stringify(token)}`);
+
+  if (!token?.data) {
+    alert("❌ NO FCM TOKEN GENERATED");
+    return;
+  }
+
 
   /* 4️⃣ SEND TO BACKEND */
   await fetch(`${api_url}users/save-push-token`, {

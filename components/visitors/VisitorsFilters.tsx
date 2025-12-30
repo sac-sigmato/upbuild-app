@@ -245,68 +245,60 @@ export default function VisitorsFilters({
   return (
     <View style={styles.container}>
       {/* Header Section */}
-      <View style={styles.header}>
-        <View style={styles.titleSection}>
-          <View style={styles.iconContainer}>
-            <Text style={styles.iconText}>VM</Text>
-          </View>
+      {/* Header Card */}
+      <View style={styles.card}>
+        {/* Title + Actions */}
+        <View style={styles.header}>
           <View>
+            <Text style={styles.title}>Visitors Management</Text>
             <Text style={styles.subtitle}>Manage apartment visitors</Text>
           </View>
-        </View>
 
-        <View style={styles.actionButtons}>
-          {canExportVisitors && selectedVisitorIds.length > 0 && (
+          <View style={styles.actionButtons}>
+            {canExportVisitors && selectedVisitorIds.length > 0 && (
+              <TouchableOpacity
+                onPress={handleExport}
+                disabled={loadingExport}
+                style={styles.circleButton}
+              >
+                <Download size={18} color="#1EB88C" />
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
-              onPress={handleExport}
-              disabled={loadingExport}
+              onPress={() => setShowFilterModal(true)}
               style={[
-                styles.iconButton,
-                loadingExport && styles.buttonDisabled,
+                styles.circleButton,
+                hasActiveFilters && styles.circleButtonActive,
               ]}
             >
-              <Download
-                size={18}
-                color={loadingExport ? "#9ca3af" : "#1eb88c"}
-              />
+              <Filter size={18} color={hasActiveFilters ? "#fff" : "#1EB88C"} />
             </TouchableOpacity>
-          )}
 
-          <TouchableOpacity
-            onPress={() => setShowFilterModal(true)}
-            style={[
-              styles.iconButton,
-              hasActiveFilters && styles.activeFilterButton,
-            ]}
-          >
-            <Filter size={18} color={hasActiveFilters ? "#fff" : "#1eb88c"} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => {
-              router.push(`/visitors/add` as any);
-            }}
-            style={styles.addButton}
-          >
-            <UserPlus size={16} color="#fff" />
-            <Text style={styles.addButtonText}>Add</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push("/visitors/add" as any)}
+              style={styles.addButton}
+            >
+              <UserPlus size={16} color="#fff" />
+              {/* <Text style={styles.addButtonText}>Add visitor</Text> */}
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Search size={18} color="#6b7280" style={styles.searchIcon} />
-        <TextInput
-          placeholder="Search visitors, phone, flat, occupant..."
-          value={searchText}
-          onChangeText={(text) => {
-            setSearchText(text);
-            setCurrentPage(1);
-          }}
-          style={styles.searchInput}
-          placeholderTextColor="#9ca3af"
-        />
+        {/* Search */}
+        <View style={styles.searchContainer}>
+          <Search size={16} color="#6B7280" />
+          <TextInput
+            placeholder="Search visitors, phone, flat, occupant..."
+            value={searchText}
+            onChangeText={(text) => {
+              setSearchText(text);
+              setCurrentPage(1);
+            }}
+            style={styles.searchInput}
+            placeholderTextColor="#9CA3AF"
+          />
+        </View>
       </View>
 
       {/* Selected Count */}
@@ -458,16 +450,90 @@ export default function VisitorsFilters({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: "#fff",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    // padding: 16,
+    // borderBottomWidth: 1,
+    // borderBottomColor: "#e5e7eb",
   },
+ 
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    marginBottom: 12,
+  },
+
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
   },
+
+  title: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+
+  subtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+  },
+
+  actionButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  circleButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#ECFEF7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  circleButtonActive: {
+    backgroundColor: "#1EB88C",
+  },
+
+  addButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1EB88C",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+
+  addButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    height: 40,
+  },
+
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    marginLeft: 8,
+    color: "#374151",
+  },
+
   titleSection: {
     flexDirection: "row",
     alignItems: "center",
@@ -487,21 +553,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 14,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1e293b",
-  },
-  subtitle: {
-    fontSize: 12,
-    color: "#64748b",
-    marginTop: 2,
-  },
-  actionButtons: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
+  
   iconButton: {
     width: 40,
     height: 40,
@@ -519,37 +571,13 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.5,
   },
-  addButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1eb88c",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 4,
-  },
-  addButtonText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 12,
-  },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f8f9fa",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-  },
+  
+ 
+  
   searchIcon: {
     marginRight: 8,
   },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: "#374151",
-  },
+  
   selectedContainer: {
     flexDirection: "row",
     justifyContent: "space-between",

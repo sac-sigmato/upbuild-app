@@ -1,6 +1,5 @@
 // components/VisitorFormLeftColumn.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Picker } from "@react-native-picker/picker";
 import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -356,18 +355,27 @@ export default function VisitorFormLeftColumn(props: VisitorFormLeftProps) {
         </View>
 
         {/* Gender */}
+        {/* Gender */}
         <View style={styles.field}>
-          <Text style={styles.label}>Gender</Text>
-          <View style={styles.pickerWrap}>
-            <Picker
-              selectedValue={gender}
-              onValueChange={(v) => setGender(String(v))}
-            >
-              <Picker.Item label="Select gender" value="" />
-              <Picker.Item label="Male" value="Male" />
-              <Picker.Item label="Female" value="Female" />
-              <Picker.Item label="Other" value="Other" />
-            </Picker>
+          <Text style={styles.label}>*Gender</Text>
+
+          <View style={styles.pillRow}>
+            {["Male", "Female", "Others"].map((g) => (
+              <TouchableOpacity
+                key={g}
+                style={[styles.pill, gender === g && styles.pillActive]}
+                onPress={() => setGender(g)}
+              >
+                <Text
+                  style={[
+                    styles.pillText,
+                    gender === g && styles.pillTextActive,
+                  ]}
+                >
+                  {g}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
@@ -410,40 +418,28 @@ export default function VisitorFormLeftColumn(props: VisitorFormLeftProps) {
         </View>
 
         {/* Visitor Type */}
+        {/* Visitor Type */}
         <View style={styles.field}>
           <Text style={styles.label}>*Visitor Type</Text>
-          <View style={styles.pickerWrap}>
-            <Picker
-              selectedValue={visitorType}
-              onValueChange={(v) => {
-                setVisitorType(String(v));
-                if (String(v) !== "Other") setCustomVisitorType("");
-              }}
-            >
-              <Picker.Item label="Select visitor type" value="" />
-              {roleName !== "occupants" && (
-                <Picker.Item
-                  label="Visiting Entire Apartment"
-                  value="For Apartment"
-                />
-              )}
-              <Picker.Item label="Delivery" value="Delivery" />
-              <Picker.Item label="Food Delivery" value="Food Delivery" />
-              <Picker.Item label="Friend" value="Friend" />
-              <Picker.Item label="Guest" value="Guest" />
-              <Picker.Item label="Maintenance" value="Maintenance" />
-              <Picker.Item label="Other" value="Other" />
-            </Picker>
-          </View>
 
-          {visitorType === "Other" && (
-            <TextInput
-              style={[styles.input, { marginTop: 8 }]}
-              value={customVisitorType}
-              onChangeText={setCustomVisitorType}
-              placeholder="Please specify"
-            />
-          )}
+          <View style={styles.pillRow}>
+            {["Visitor", "Delivery", "Service", "Others"].map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={[styles.pill, visitorType === t && styles.pillActive]}
+                onPress={() => setVisitorType(t)}
+              >
+                <Text
+                  style={[
+                    styles.pillText,
+                    visitorType === t && styles.pillTextActive,
+                  ]}
+                >
+                  {t}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       </View>
     </View>
@@ -534,5 +530,44 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: "hidden",
     backgroundColor: "#fff",
+  },
+  pillRow: {
+    flexDirection: "row",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+
+  pill: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#F1F5F9",
+  },
+
+  pillActive: {
+    backgroundColor: "#1EB88C",
+  },
+
+  pillText: {
+    fontSize: 13,
+    color: "#94A3B8",
+    fontWeight: "500",
+  },
+
+  pillTextActive: {
+    color: "#FFFFFF",
+  },
+
+  uploadBtn: {
+    backgroundColor: "#1EB88C",
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+
+  uploadText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
   },
 });
