@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "484039714404",
+    "project_id": "upbuild-app",
+    "storage_bucket": "upbuild-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:484039714404:android:6196ebee7e07ecc347e171",
+        "android_client_info": {
+          "package_name": "com.yourcompany.upbuildapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_3n1g73He93cbdlJkd2NWa9Zl-nF8Smk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

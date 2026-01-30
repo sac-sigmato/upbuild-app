@@ -51,6 +51,7 @@ export default function RootLayout() {
             name="visitors/add/index"
             options={{ title: "Add Visitor", headerShown: false }}
           />
+          <Stack.Screen name="profile/index" options={{ headerShown: false }} />
         </Stack>
 
         {isLoggedIn && <AuthenticatedSocketHandlers />}

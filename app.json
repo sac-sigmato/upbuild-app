@@ -4,12 +4,12 @@
     "slug": "upbuild-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/logo.png",
     "scheme": "upbuildapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "notification": {
-      "icon": "./assets/images/icon.png",
+      "icon": "./assets/logo.png",
       "color": "#1eb88c"
     },
     "ios": {
@@ -61,11 +61,10 @@
     },
     "plugins": [
       "expo-router",
-      "expo-notifications",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/logo.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",

@@ -2,51 +2,83 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-interface User {
+/* ---------------- TYPES ---------------- */
+
+export interface User {
   _id: string;
   name: string;
   email: string;
-  userRole?: string;
+  userType?: string;
+  roleName?: string;
+  apartment?: string;
+  flat?: string;
   [key: string]: any;
 }
 
 interface Store {
   user: User | null;
+  token: string | null;
   isLoggedIn: boolean;
+
   setUser: (user: User | null) => void;
-  logout: () => void;
+  setToken: (token: string | null) => void;
+  logout: () => Promise<void>;
 
   hasHydrated: boolean;
   setHasHydrated: (v: boolean) => void;
 }
 
-const makeSafeStorage = (s: any) => ({
+/* ---------------- SAFE STORAGE ---------------- */
+
+const makeSafeStorage = (storage: any) => ({
   getItem: async (key: string) => {
     try {
-      return await s.getItem(key);
+      return await storage.getItem(key);
     } catch {
       return null;
     }
   },
   setItem: async (key: string, value: string) => {
     try {
-      await s.setItem(key, value);
+      await storage.setItem(key, value);
     } catch {}
   },
   removeItem: async (key: string) => {
     try {
-      await s.removeItem(key);
+      await storage.removeItem(key);
     } catch {}
   },
 });
+
+/* ---------------- STORE ---------------- */
 
 export const useUserStore = create<Store>()(
   persist(
     (set) => ({
       user: null,
+      token: null,
       isLoggedIn: false,
-      setUser: (user) => set({ user, isLoggedIn: !!user }),
-      logout: () => set({ user: null, isLoggedIn: false }),
+
+      setUser: (user) =>
+        set({
+          user,
+          isLoggedIn: !!user,
+        }),
+
+      setToken: (token) =>
+        set({
+          token,
+          isLoggedIn: !!token,
+        }),
+
+      // store/useUserStore.ts
+      logout: async () => {
+        try {
+          await AsyncStorage.removeItem("token");
+          await AsyncStorage.removeItem("upbuild_user_store");
+        } catch {}
+        set({ user: null, isLoggedIn: false });
+      },
 
       hasHydrated: false,
       setHasHydrated: (v) => set({ hasHydrated: v }),
@@ -54,12 +86,13 @@ export const useUserStore = create<Store>()(
     {
       name: "upbuild_user_store",
 
-      // 🔥 THE REAL FIX
+      // ✅ SAFE + EXPO FRIENDLY
       storage: createJSONStorage(() => makeSafeStorage(AsyncStorage)),
 
+      // ✅ VERY IMPORTANT
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },
-    }
-  )
+    },
+  ),
 );

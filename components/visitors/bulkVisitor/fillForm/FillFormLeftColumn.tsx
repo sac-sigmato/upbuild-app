@@ -2,15 +2,15 @@
 import * as ImagePicker from "expo-image-picker";
 import React, { useEffect } from "react";
 import {
-        Alert,
-        Image,
-        Platform,
-        StyleSheet,
-        Text,
-        TextInput,
-        ToastAndroid,
-        TouchableOpacity,
-        View,
+  Alert,
+  Image,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  ToastAndroid,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 interface FillFormLeftColumnProps {
@@ -140,8 +140,8 @@ export default function FillFormLeftColumn({
       if (fileSize && fileSize > maxBytes) {
         toast(
           `Photo exceeds 5MB limit (${(fileSize / (1024 * 1024)).toFixed(
-            2
-          )} MB).`
+            2,
+          )} MB).`,
         );
         return;
       }
@@ -199,8 +199,8 @@ export default function FillFormLeftColumn({
       if (fileSize && fileSize > maxBytes) {
         toast(
           `Photo exceeds 5MB limit (${(fileSize / (1024 * 1024)).toFixed(
-            2
-          )} MB).`
+            2,
+          )} MB).`,
         );
         return;
       }

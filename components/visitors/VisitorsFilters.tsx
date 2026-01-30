@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
     // borderBottomWidth: 1,
     // borderBottomColor: "#e5e7eb",
   },
- 
+
   card: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -553,7 +553,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 14,
   },
-  
+
   iconButton: {
     width: 40,
     height: 40,
@@ -571,13 +571,11 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.5,
   },
-  
- 
-  
+
   searchIcon: {
     marginRight: 8,
   },
-  
+
   selectedContainer: {
     flexDirection: "row",
     justifyContent: "space-between",

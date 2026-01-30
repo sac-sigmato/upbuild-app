@@ -258,7 +258,7 @@ export default function VisitorFormLeftColumn(props: VisitorFormLeftProps) {
     if (e.nativeEvent.key === "ArrowDown") {
       e.preventDefault();
       setHighlightedIndex((prev) =>
-        Math.min(prev + 1, matchedVisitors.length - 1)
+        Math.min(prev + 1, matchedVisitors.length - 1),
       );
     } else if (e.nativeEvent.key === "ArrowUp") {
       e.preventDefault();
@@ -314,6 +314,8 @@ export default function VisitorFormLeftColumn(props: VisitorFormLeftProps) {
       </View>
     );
   };
+
+  const [imageError, setImageError] = useState(false);
 
   return (
     <View style={styles.container}>
@@ -402,11 +404,22 @@ export default function VisitorFormLeftColumn(props: VisitorFormLeftProps) {
 
             {previewUrl ? (
               <View style={styles.previewWrap}>
-                <Image source={{ uri: previewUrl }} style={styles.preview} />
+                <Image
+                  source={
+                    imageError
+                      ? require("@/assets/images/favicon.png") // 👈 fallback image
+                      : { uri: previewUrl }
+                  }
+                  style={styles.preview}
+                  onError={() => setImageError(true)} // 👈 detect broken URL
+                  resizeMode="cover"
+                />
+
                 <TouchableOpacity
                   onPress={() => {
                     setPhoto(null);
                     setPreviewUrl(null);
+                    setImageError(false); // reset
                   }}
                   style={{ marginTop: 6 }}
                 >
@@ -423,7 +436,17 @@ export default function VisitorFormLeftColumn(props: VisitorFormLeftProps) {
           <Text style={styles.label}>*Visitor Type</Text>
 
           <View style={styles.pillRow}>
-            {["Visitor", "Delivery", "Service", "Others"].map((t) => (
+            {[
+              "Delivery",
+              "Food Delivery",
+              "Friend",
+              "Guest",
+              "Maintenance",
+              ...(roleName !== "occupants"
+                ? ["Visiting Entire Apartment"]
+                : []),
+              "Others",
+            ].map((t) => (
               <TouchableOpacity
                 key={t}
                 style={[styles.pill, visitorType === t && styles.pillActive]}

@@ -1,22 +1,29 @@
 // app/visitors/index.tsx
+import AppUserHeader from "@/components/AppUserHeader";
+import ExportDateRangeModal from "@/components/visitors/ExportDateRangeModal";
+import VisitorsFilters from "@/components/visitors/VisitorsFilters";
+import VisitorsList from "@/components/visitors/VisitorsList";
+import { visitorService } from "@/services/visitorService";
+import { useUserStore } from "@/store/useUserStore";
+import { getMyPermissions } from "@/utils/getMyPermissions"; // adjust path if needed
 import { useRouter } from "expo-router";
+import * as Sharing from "expo-sharing";
 import React, { useCallback, useEffect, useState } from "react";
+import { RefreshControl } from "react-native";
+
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   Platform,
   StyleSheet,
   Text,
   ToastAndroid,
   View,
 } from "react-native";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
-import ExportDateRangeModal from "../../components/visitors/ExportDateRangeModal";
-import VisitorsFilters from "../../components/visitors/VisitorsFilters";
-import VisitorsList from "../../components/visitors/VisitorsList";
-import { visitorService } from "../../services/visitorService";
-import { useUserStore } from "../../store/useUserStore";
+import {
+  GestureHandlerRootView,
+  TouchableOpacity,
+} from "react-native-gesture-handler";
 
 // ---------- Helper Toast ----------
 const nativeToast = (msg: string) => {
@@ -27,6 +34,7 @@ const nativeToast = (msg: string) => {
 export default function VisitorsPageScreen() {
   const router = useRouter();
   const { user, hasHydrated } = useUserStore();
+  const [refreshing, setRefreshing] = useState(false);
 
   // State declarations
   const [visitors, setVisitors] = useState<any[]>([]);
@@ -42,6 +50,23 @@ export default function VisitorsPageScreen() {
   const [toDate, setToDate] = useState<string>("");
   const [selectedAcceptStatus, setSelectedAcceptStatus] = useState("");
   const [searchText, setSearchText] = useState("");
+  const [canExportVisitors, setCanExportVisitors] = useState(false);
+  const [roleSlug, setRoleSlug] = useState("");
+
+  const handleRefresh = async () => {
+    if (refreshing) return;
+
+    try {
+      setRefreshing(true);
+      setCurrentPage(1); // reset to first page
+      await fetchVisitors(1, selectedLimit);
+      setSelectedVisitorIds([]);
+    } catch (err) {
+      nativeToast("Failed to refresh visitors");
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Stable fetch function
   const fetchVisitors = useCallback(
@@ -79,7 +104,7 @@ export default function VisitorsPageScreen() {
       fromDate,
       toDate,
       selectedLimit,
-    ]
+    ],
   );
 
   // Safe effect with cleanup
@@ -110,6 +135,21 @@ export default function VisitorsPageScreen() {
       controller.abort();
     };
   }, [hasHydrated, currentPage, fetchVisitors, selectedLimit]);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+
+    const loadPermissions = async () => {
+      const { permissions, roleSlug } = await getMyPermissions();
+      // console.log(permissions, roleSlug);
+
+      setRoleSlug(roleSlug);
+      setCanExportVisitors(permissions.includes("can_export_visitors_data"));
+      console.log(canExportVisitors);
+    };
+
+    loadPermissions();
+  }, [hasHydrated]);
 
   // Simple and reliable export function
   const handleExport = async () => {
@@ -253,88 +293,30 @@ export default function VisitorsPageScreen() {
   // Save and open PDF using different methods
   const saveAndOpenPdf = async (base64: string, filename: string) => {
     try {
-      // Method A: Try using expo-file-system legacy API
-      try {
-        const { writeAsStringAsync, EncodingType, cacheDirectory } =
-          await import("expo-file-system/legacy");
-        const fileUri = `${cacheDirectory}${filename}`;
+      const { writeAsStringAsync, EncodingType, cacheDirectory } =
+        await import("expo-file-system/legacy");
 
-        await writeAsStringAsync(fileUri, base64, {
-          encoding: EncodingType.Base64,
+      const fileUri = `${cacheDirectory}${filename}`;
+
+      await writeAsStringAsync(fileUri, base64, {
+        encoding: EncodingType.Base64,
+      });
+
+      console.log("File saved to:", fileUri);
+
+      // ✅ CORRECT WAY (Android + iOS)
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "application/pdf",
+          dialogTitle: "Visitors Report",
         });
-
-        console.log("File saved to:", fileUri);
-
-        // Try to open with Linking
-        if (await Linking.canOpenURL(fileUri)) {
-          await Linking.openURL(fileUri);
-          nativeToast("Opening PDF...");
-        } else {
-          // Try to share
-          try {
-            const { isAvailableAsync, shareAsync } = await import(
-              "expo-sharing"
-            );
-            if (await isAvailableAsync()) {
-              await shareAsync(fileUri, {
-                mimeType: "application/pdf",
-                dialogTitle: "Visitors Report",
-              });
-              nativeToast("Sharing PDF...");
-            } else {
-              nativeToast(`PDF saved to: ${fileUri}`);
-            }
-          } catch (shareError) {
-            nativeToast(`PDF saved to app cache`);
-          }
-        }
-        return;
-      } catch (fsError) {
-        console.log("FileSystem method failed:", fsError);
+        nativeToast("PDF ready to share");
+      } else {
+        nativeToast("Sharing not available on this device");
       }
-
-      // Method B: For Android - create a download link
-      if (Platform.OS === "android") {
-        try {
-          // Create a data URL
-          const dataUrl = `data:application/pdf;base64,${base64}`;
-
-          // Try to open with Linking
-          if (await Linking.canOpenURL(dataUrl)) {
-            await Linking.openURL(dataUrl);
-            nativeToast("Opening PDF...");
-          } else {
-            // Fallback: Download manager intent
-            const downloadUrl = `http://192.168.29.35:5000/api/download?filename=${filename}&data=${encodeURIComponent(
-              base64
-            )}`;
-            await Linking.openURL(downloadUrl);
-            nativeToast("Starting download...");
-          }
-          return;
-        } catch (androidError) {
-          console.log("Android method failed:", androidError);
-        }
-      }
-
-      // Method C: For iOS - try to open in browser
-      if (Platform.OS === "ios") {
-        try {
-          const dataUrl = `data:application/pdf;base64,${base64}`;
-          await Linking.openURL(dataUrl);
-          nativeToast("Opening PDF...");
-          return;
-        } catch (iosError) {
-          console.log("iOS method failed:", iosError);
-        }
-      }
-
-      // Fallback: Show base64 data (for debugging)
-      console.log("PDF base64 (first 100 chars):", base64.substring(0, 100));
-      nativeToast("PDF downloaded. Please check your downloads folder.");
-    } catch (error: any) {
-      console.error("Save and open error:", error);
-      nativeToast("Could not open PDF. Please try another method.");
+    } catch (error) {
+      console.error("Save/open PDF error:", error);
+      nativeToast("Failed to open PDF");
     }
   };
 
@@ -427,7 +409,16 @@ export default function VisitorsPageScreen() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.container}>
-        <Text style={styles.visitorsTitle}>Visitors</Text>
+        <AppUserHeader />
+        <View style={styles.titleRow}>
+          <Text style={styles.visitorsTitle}>Visitors</Text>
+
+          <TouchableOpacity onPress={handleRefresh} disabled={refreshing}>
+            <Text style={{ color: "#1eb88c", fontWeight: "600" }}>
+              {refreshing ? "Refreshing..." : "Refresh"}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.contentContainer}>
           <View style={styles.cardBox}>
@@ -474,8 +465,16 @@ export default function VisitorsPageScreen() {
               onPageChange={setCurrentPage}
               selectedVisitorIds={selectedVisitorIds}
               setSelectedVisitorIds={setSelectedVisitorIds}
-              canEditVisitorStatus={true}
+              canExportVisitors={canExportVisitors}
               canRespondToVisitorStatus={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={handleRefresh}
+                  colors={["#1eb88c"]} // Android
+                  tintColor="#1eb88c" // iOS
+                />
+              }
             />
 
             <ExportDateRangeModal
@@ -495,6 +494,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f3f6f7",
   },
+  titleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginTop: 16,
+  },
+
   loadingContainer: {
     flex: 1,
     justifyContent: "center",

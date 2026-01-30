@@ -12,41 +12,50 @@ import {
   TextInput,
   ToastAndroid,
   TouchableOpacity,
+  View,
 } from "react-native";
-// import your zustand / store hook — adjust path
+
 import { socketInstance } from "@/sockets/socketInstance";
 import { registerForPush } from "@/utils/registerForPush";
 import { useRouter } from "expo-router";
+import { Eye, EyeOff, Mail } from "lucide-react-native";
 import { useUserStore } from "../../store/useUserStore";
 import { api_url } from "../../utils/apiLocalhost";
 
-const SignInForm = () => {
+const OTP_LENGTH = 5;
+
+export default function SignInForm() {
   const router = useRouter();
   const navigation = useNavigation();
-  // depending on how your store works:
   const { setUser } = useUserStore();
-  const [user, setLocalUser] = useState({} as any);
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPasswordField, setShowPasswordField] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
+
+  // ✅ OTP ATTEMPT INFO (FROM BACKEND)
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(
-    null
+    null,
   );
   const [otpWindow, setOtpWindow] = useState<number | null>(null);
 
-  const toast = (msg: string) => {
-    if (Platform.OS === "android") ToastAndroid.show(msg, ToastAndroid.SHORT);
-    else Alert.alert("", msg);
-  };
+  const toast = (msg: string) =>
+    Platform.OS === "android"
+      ? ToastAndroid.show(msg, ToastAndroid.SHORT)
+      : Alert.alert("", msg);
 
+  const isIdentifierInvalid =
+    identifier.length < 10 && !identifier.includes("@");
+
+  /* ---------------- SEND OTP ---------------- */
   const handleSendOtp = async () => {
     if (!identifier.trim()) {
-      Alert.alert("Error", "Please enter your phone or email.");
+      toast("Please enter your phone or email.");
       return;
     }
 
@@ -59,34 +68,39 @@ const SignInForm = () => {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to send OTP");
 
-      // feedback
-      toast("OTP sent successfully!");
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to send OTP");
+      }
+
+      toast("OTP sent successfully");
+      setOtp("");
       setOtpSent(true);
-      setRemainingAttempts(data.remainingAttempts ?? null);
 
-      // Extract OTP window in minutes (attemptWindow may be string)
+      // ✅ SAME AS WEB
+      setRemainingAttempts(
+        typeof data.remainingAttempts === "number"
+          ? data.remainingAttempts
+          : null,
+      );
+
       if (data.attemptWindow) {
-        const minutes = parseFloat(data.attemptWindow as any);
+        const minutes = parseFloat(data.attemptWindow);
         setOtpWindow(!isNaN(minutes) ? minutes : null);
       }
     } catch (err: any) {
-      // Example: server could return "OTP limit reached" in message
-      if (err?.message?.includes?.("OTP limit reached")) {
-        Alert.alert("Error", err.message);
-      } else {
-        Alert.alert("Error", err.message || "Something went wrong.");
-      }
+      toast(err.message || "Something went wrong");
       setRemainingAttempts(null);
+      setOtpWindow(null);
     } finally {
       setLoading(false);
     }
   };
 
+  /* ---------------- VERIFY OTP ---------------- */
   const handleVerifyOtpAndLogin = async () => {
-    if (!otp.trim()) {
-      Alert.alert("Error", "Please enter the OTP.");
+    if (!otp || otp.length !== OTP_LENGTH) {
+      toast("Please enter valid OTP");
       return;
     }
 
@@ -101,395 +115,227 @@ const SignInForm = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "OTP login failed");
 
-      // ✅ CASE 1: Approved user
-      if (
-        data.token &&
-        data.userDetails &&
-        data.userDetails.isApproved !== false
-      ) {
-        await AsyncStorage.setItem("token", data.token);
+      await AsyncStorage.setItem("token", data.token);
 
-        if (data.userDetails.roles?.length === 1) {
-          const role = data.userDetails.roles[0];
+      const role = data.userDetails.roles[0];
+      const userObj = {
+        _id: data.userDetails._id,
+        name: data.userDetails.name,
+        email: data.userDetails.email,
+        contactNumber: data.userDetails.contactNumber,
+        userType: role.roleId,
+        roleName: role.slug,
+        apartment: role.apartmentId,
+        flat: role.flatId,
+      };
 
-          const userObj = {
-            _id: data.userDetails._id,
-            name: data.userDetails.name,
-            email: data.userDetails.email,
-            userType: role.roleId,
-            roleName: role.slug,
-            apartment: role.apartmentId,
-            flat: role.flatId,
-          };
+      setUser(userObj);
 
-          // update global store
-          try {
-            if (typeof setUser === "function") setUser(userObj);
-          } catch (e) {}
+      try {
+        await registerForPush({
+          api_url,
+          jwt: data.token,
+          apartmentId: userObj.apartment,
+          flatId: userObj.flat,
+        });
+      } catch {}
 
-          setLocalUser(userObj);
+      socketInstance.emit("register-user", {
+        userId: userObj._id,
+        apartmentId: userObj.apartment,
+        userType: userObj.userType,
+      });
 
-          /* 🔔 REGISTER PUSH TOKEN (NEW) */
-          await registerForPush({
-            api_url,
-            jwt: data.token,
-            apartmentId: userObj.apartment,
-            flatId: userObj.flat,
-          });
-
-          // navigation handled elsewhere
-        } else {
-          await AsyncStorage.setItem(
-            "pendingUser",
-            JSON.stringify(data.userDetails)
-          );
-          navigation.navigate("SelectRole" as never);
-        }
-
-        // ❌ CASE 2: Unapproved user (NO push token)
-      } else if (data.userDetails && data.userDetails.isApproved === false) {
-        if (data.token) await AsyncStorage.setItem("token", data.token);
-
-        const unapproved = {
-          _id: data.userDetails._id,
-          name: "Unapproved User",
-          email: data.userDetails.email || "",
-          contactNumber: data.userDetails.contactNumber,
-        };
-
-        try {
-          if (typeof setUser === "function") setUser(unapproved);
-        } catch (e) {}
-
-        setLocalUser(unapproved);
-        toast("OTP verified! Awaiting approval.");
-        navigation.navigate("SelectState" as never);
-      } else {
-        toast("Login succeeded but response shape unexpected.");
-      }
+      router.push("/visitors" as any);
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Something went wrong.");
+      toast(err.message || "Invalid OTP");
     } finally {
       setLoading(false);
     }
   };
 
+  /* ---------------- PASSWORD LOGIN ---------------- */
   const handlePasswordLogin = async () => {
     if (!identifier || !password) {
-      Alert.alert("Error", "Please fill all fields.");
+      toast("Please fill all fields");
       return;
     }
 
     setLoading(true);
     try {
-      const response = await fetch(`${api_url}apartment/user/login`, {
+      const res = await fetch(`${api_url}apartment/user/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: identifier, password }),
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Login failed");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Login failed");
 
-      if (data.token) await AsyncStorage.setItem("token", data.token);
+      await AsyncStorage.setItem("token", data.token);
 
-      if (data.userDetails.roles?.length === 1) {
-        const role = data.userDetails.roles[0];
+      const role = data.userDetails.roles[0];
+      setUser({
+        _id: data.userDetails._id,
+        name: data.userDetails.name,
+        email: data.userDetails.email,
+        contactNumber: data.userDetails.contactNumber,
+        userType: role.roleId,
+        roleName: role.slug,
+        apartment: role.apartmentId,
+        flat: role.flatId,
+      });
 
-        const userObj = {
-          _id: data.userDetails._id,
-          name: data.userDetails.name,
-          email: data.userDetails.email,
-          userType: role.roleId,
-          roleName: role.slug,
-          apartment: role.apartmentId,
-          flat: role.flatId,
-        };
-
-        try {
-          if (typeof setUser === "function") setUser(userObj);
-        } catch (e) {}
-
-        setLocalUser(userObj);
-        toast("Logged in Successfully!");
-        // 🔥 REGISTER PUSH TOKEN HERE (ONLY ONCE)
-        try {
-          await registerForPush({
-            api_url,
-            jwt: data.token,
-            apartmentId: userObj.apartment,
-            flatId: userObj.flat,
-          });
-        } catch (e) {
-          console.warn("⚠️ Push registration failed", e);
-        }
-
-
-        /* 🔌 SOCKET REGISTER */
-        socketInstance.emit("register-user", {
-          userId: userObj._id,
-          apartmentId: userObj.apartment,
-          userType: userObj.userType,
-        });
-
-        router.push("/visitors" as any);
-      } else {
-        await AsyncStorage.setItem(
-          "pendingUser",
-          JSON.stringify(data.userDetails)
-        );
-        navigation.navigate("SelectRole" as never);
-      }
-    } catch (error: any) {
-      Alert.alert("Error", error?.message || "Something went wrong!");
+      router.push("/visitors" as any);
+    } catch (err: any) {
+      toast(err.message || "Login failed");
     } finally {
       setLoading(false);
     }
   };
 
-  // const handleVerifyOtpAndLogin = async () => {
-  //   if (!otp.trim()) {
-  //     Alert.alert("Error", "Please enter the OTP.");
-  //     return;
-  //   }
-
-  //   setLoading(true);
-  //   try {
-  //     const res = await fetch(`${api_url}apartment/user/login/otp`, {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({ identifier, otp }),
-  //     });
-
-  //     const data = await res.json();
-  //     if (!res.ok) throw new Error(data.message || "OTP login failed");
-
-  //     // CASE 1: Approved user with token and userDetails
-  //     if (
-  //       data.token &&
-  //       data.userDetails &&
-  //       data.userDetails.isApproved !== false
-  //     ) {
-  //       // store token
-  //       await AsyncStorage.setItem("token", data.token);
-
-  //       if (data.userDetails.roles?.length === 1) {
-  //         const role = data.userDetails.roles[0];
-  //         const userObj = {
-  //           _id: data.userDetails._id,
-  //           name: data.userDetails.name,
-  //           email: data.userDetails.email,
-  //           userType: role.roleId,
-  //           roleName: role.slug,
-  //           apartment: role.apartmentId,
-  //           flat: role.flatId,
-  //         };
-
-  //         // update global store
-  //         try {
-  //           if (typeof setUser === "function") setUser(userObj);
-  //         } catch (e) {
-  //           // ignore if store shape differs
-  //         }
-  //         setLocalUser(userObj);
-
-  //         toast("Logged in successfully!");
-  //         // navigate to dashboard
-  //         // adjust route name as per your navigator
-  //         // cast to any to satisfy router typing for dynamic/unlisted routes
-  //         router.push("/visitors" as any);
-  //       } else {
-  //         // multiple roles -> save pending and navigate to role select
-  //         await AsyncStorage.setItem(
-  //           "pendingUser",
-  //           JSON.stringify(data.userDetails)
-  //         );
-  //         navigation.navigate("SelectRole" as never);
-  //       }
-
-  //       // CASE 2: Unapproved user
-  //     } else if (data.userDetails && data.userDetails.isApproved === false) {
-  //       // still may have token — store if present
-  //       if (data.token) await AsyncStorage.setItem("token", data.token);
-
-  //       const unapproved = {
-  //         _id: data.userDetails._id,
-  //         name: "Unapproved User",
-  //         email: data.userDetails.email || "",
-  //         contactNumber: data.userDetails.contactNumber,
-  //       };
-
-  //       try {
-  //         if (typeof setUser === "function") setUser(unapproved);
-  //       } catch (e) {}
-
-  //       setLocalUser(unapproved);
-  //       toast("OTP verified! Awaiting approval.");
-  //       navigation.navigate("SelectState" as never);
-  //     } else {
-  //       // fallback
-  //       toast("Login succeeded but response shape unexpected.");
-  //     }
-  //   } catch (err: any) {
-  //     Alert.alert("Error", err.message || "Something went wrong.");
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
-
-  // const handlePasswordLogin = async () => {
-  //   if (!identifier || !password) {
-  //     Alert.alert("Error", "Please fill all fields.");
-  //     return;
-  //   }
-
-  //   setLoading(true);
-  //   try {
-  //     const response = await fetch(`${api_url}apartment/user/login`, {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({ email: identifier, password }),
-  //     });
-
-  //     const data = await response.json();
-  //     if (!response.ok) throw new Error(data.message || "Login failed");
-
-  //     // store token
-  //     if (data.token) await AsyncStorage.setItem("token", data.token);
-
-  //     if (data.userDetails.roles?.length === 1) {
-  //       const role = data.userDetails.roles[0];
-  //       const userObj = {
-  //         _id: data.userDetails._id,
-  //         name: data.userDetails.name,
-  //         email: data.userDetails.email,
-  //         userType: role.roleId,
-  //         roleName: role.slug,
-  //         apartment: role.apartmentId,
-  //         flat: role.flatId,
-  //       };
-
-  //       try {
-  //         if (typeof setUser === "function") setUser(userObj);
-  //       } catch (e) {}
-
-  //       setLocalUser(userObj);
-  //       toast("Logged in Successfully!");
-  //        socketInstance.emit("register-user", {
-  //          userId: userObj._id,
-  //          apartmentId: userObj.apartment,
-  //          userType: userObj.userType, // owner or tenant or occupant
-  //        });
-  //        console.log("Socket emitted");
-  //       router.push("/visitors" as any);
-  //     } else {
-  //       await AsyncStorage.setItem(
-  //         "pendingUser",
-  //         JSON.stringify(data.userDetails)
-  //       );
-  //       navigation.navigate("SelectRole" as never);
-  //     }
-  //   } catch (error: any) {
-  //     Alert.alert("Error", error?.message || "Something went wrong!");
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
-
+  /* ---------------- UI ---------------- */
   return (
-    <ScrollView
-      contentContainerStyle={styles.page}
-      keyboardShouldPersistTaps="handled"
-    >
-      {/* Logo */}
-      <Image
-        source={require("@/assets/logo.png")}
-        style={styles.logo}
-        resizeMode="contain"
-      />
+    <ScrollView contentContainerStyle={styles.page}>
+      <Image source={require("@/assets/logo.png")} style={styles.logo} />
 
-      {/* Title */}
-      <Text style={styles.title}>Sign In</Text>
+      {/* BACK */}
+      {(otpSent || showPasswordField) && (
+        <TouchableOpacity
+          style={styles.backRow}
+          onPress={() => {
+            setOtpSent(false);
+            setOtp("");
+            setShowPasswordField(false);
+            setRemainingAttempts(null);
+            setOtpWindow(null);
+          }}
+        >
+          <Text style={styles.backText}>‹ Back</Text>
+        </TouchableOpacity>
+      )}
 
-      {/* Email / Phone */}
-      <TextInput
-        style={styles.input}
-        placeholder="*Email or Phone number"
-        placeholderTextColor="#6B7280"
-        value={identifier}
-        onChangeText={setIdentifier}
-        editable={!loading}
-        autoCapitalize="none"
-      />
+      {/* EMAIL / PHONE */}
+      <Text style={styles.label}>*Email or Phone</Text>
+      <View style={styles.inputWrapper}>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter email or phone number"
+          value={identifier}
+          onChangeText={setIdentifier}
+          autoCapitalize="none"
+        />
+        <Mail size={18} color="#9CA3AF" />
+      </View>
 
-      {/* OTP MODE */}
-      {!showPasswordField && otpSent && (
+      {/* ✅ OTP ATTEMPT MESSAGE (SAME AS WEB) */}
+      {/* {otpSent && remainingAttempts !== null && (
+        <Text style={styles.attemptText}>
+          You have <Text style={styles.bold}>{remainingAttempts}</Text> OTP
+          attempt{remainingAttempts !== 1 && "s"} remaining within{" "}
+          {otpWindow !== null ? (
+            <>
+              <Text style={styles.bold}>{otpWindow}</Text> minute
+              {otpWindow !== 1 && "s"}
+            </>
+          ) : (
+            "the configured window"
+          )}
+          .
+        </Text>
+      )} */}
+
+      {/* OTP ATTEMPT MESSAGE */}
+      {otpSent && remainingAttempts !== null && (
+        <Text style={styles.attemptText}>
+          You have <Text style={styles.bold}>{remainingAttempts}</Text> OTP
+          attempt
+          {remainingAttempts !== 1 && "s"} remaining within{" "}
+          {otpWindow !== null ? (
+            <>
+              <Text style={styles.bold}>{otpWindow}</Text> minute
+              {otpWindow !== 1 && "s"}
+            </>
+          ) : (
+            "the configured window"
+          )}
+          .
+        </Text>
+      )}
+
+      {/* ✅ ENTER OTP – IMMEDIATELY AFTER MESSAGE */}
+      {otpSent && !showPasswordField && (
         <>
+          <Text style={styles.label}>*Enter OTP</Text>
           <TextInput
-            style={styles.input}
-            placeholder="*Enter OTP"
-            placeholderTextColor="#6B7280"
+            style={styles.inputBox}
+            placeholder="Enter OTP"
             value={otp}
             onChangeText={setOtp}
             keyboardType="numeric"
-            editable={!loading}
+            maxLength={OTP_LENGTH}
           />
         </>
       )}
 
-      {/* PASSWORD MODE */}
+      {/* PASSWORD */}
       {showPasswordField && (
         <>
-          <TextInput
-            style={styles.input}
-            placeholder="*Password"
-            placeholderTextColor="#6B7280"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            editable={!loading}
-          />
-
-          <TouchableOpacity>
-            <Text style={styles.forgotText}>Forgot Password?</Text>
-          </TouchableOpacity>
+          <Text style={styles.label}>*Password</Text>
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your password"
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
+            />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              {showPassword ? (
+                <EyeOff size={18} color="#9CA3AF" />
+              ) : (
+                <Eye size={18} color="#9CA3AF" />
+              )}
+            </TouchableOpacity>
+          </View>
         </>
       )}
 
-      {/* Primary Button */}
+      {/* PRIMARY BUTTON */}
       <TouchableOpacity
-        style={styles.button}
+        style={styles.primaryButton}
+        disabled={loading || (!showPasswordField && isIdentifierInvalid)}
         onPress={
           showPasswordField
             ? handlePasswordLogin
             : otpSent
-            ? handleVerifyOtpAndLogin
-            : handleSendOtp
+              ? handleVerifyOtpAndLogin
+              : handleSendOtp
         }
-        disabled={loading}
       >
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.buttonText}>
+          <Text style={styles.primaryText}>
             {showPasswordField
-              ? "Sign In"
+              ? "Login"
               : otpSent
-              ? "Verify & Login"
-              : "Next"}
+                ? "Verify & Login"
+                : "Send OTP"}
           </Text>
         )}
       </TouchableOpacity>
 
-      {/* Switch Login Mode */}
+      {/* TOGGLE MODE */}
       <TouchableOpacity
         onPress={() => {
           setShowPasswordField(!showPasswordField);
-          setPassword("");
-          setOtp("");
           setOtpSent(false);
+          setOtp("");
+          setPassword("");
+          setRemainingAttempts(null);
+          setOtpWindow(null);
         }}
-        disabled={loading}
       >
         <Text style={styles.linkText}>
           {showPasswordField ? "Login with OTP" : "Login with Password"}
@@ -497,72 +343,100 @@ const SignInForm = () => {
       </TouchableOpacity>
     </ScrollView>
   );
+}
 
-
-};
-
-export default SignInForm;
+/* ---------------- STYLES ---------------- */
 const styles = StyleSheet.create({
   page: {
-    width:  "100%",
-    height: "100%",
     flexGrow: 1,
-    backgroundColor: "#ffffff",
-    alignItems: "center",
+    backgroundColor: "#fff",
     paddingHorizontal: 24,
     paddingTop: 80,
   },
+  inputBox: {
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    height: 48,
+    fontSize: 14,
+    color: "#111827",
+    marginBottom: 16,
+  },
 
   logo: {
-    width: 120,
-    height: 30,
+    width: 140,
+    height: 36,
+    resizeMode: "contain",
+    alignSelf: "center",
     marginBottom: 40,
   },
 
-  title: {
-    fontSize: 18,
+  backRow: {
+    marginBottom: 16,
+  },
+
+  backText: {
+    color: "#22B884",
     fontWeight: "600",
-    color: "#15803D",
-    marginBottom: 28,
+    fontSize: 14,
+  },
+
+  label: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 6,
+  },
+
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    height: 48,
+    marginBottom: 12,
   },
 
   input: {
-    width: "100%",
-    borderWidth: 1,
-    borderColor: "#9CA3AF",
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    flex: 1,
     fontSize: 14,
-    marginBottom: 14,
+    color: "#111827",
   },
 
-  forgotText: {
-    alignSelf: "flex-end",
+  attemptText: {
     fontSize: 13,
-    color: "#15803D",
-    marginBottom: 24,
+    color: "#6B7280",
+    marginBottom: 12,
   },
 
-  button: {
-    width: "100%",
+  bold: {
+    fontWeight: "700",
+    color: "#111827",
+  },
+
+  primaryButton: {
     backgroundColor: "#22B884",
-    paddingVertical: 14,
-    borderRadius: 8,
+    height: 48,
+    borderRadius: 24,
     alignItems: "center",
-    marginTop: 10,
+    justifyContent: "center",
+    marginTop: 8,
   },
 
-  buttonText: {
-    color: "#FFFFFF",
+  primaryText: {
+    color: "#fff",
+    fontWeight: "700",
     fontSize: 15,
-    fontWeight: "600",
   },
 
   linkText: {
-    marginTop: 20,
-    fontSize: 13,
-    color: "#15803D",
-    fontWeight: "500",
+    marginTop: 24,
+    textAlign: "center",
+    color: "#22B884",
+    fontWeight: "600",
+    fontSize: 14,
   },
 });
