@@ -1,6 +1,7 @@
 import Checkbox from "expo-checkbox";
 import React from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +11,7 @@ import {
 
 export default function VisitorTableMobile({
   visitors,
+  loading,
   selectedVisitorIds,
   setSelectedVisitorIds,
   setSelectedId,
@@ -22,6 +24,7 @@ export default function VisitorTableMobile({
   canEditVisitorStatus,
 }: {
   visitors: any[];
+  loading: boolean; // ✅ ADD
   selectedVisitorIds: string[];
   setSelectedVisitorIds: (ids: string[]) => void;
   setSelectedId: (id: string) => void;
@@ -49,6 +52,11 @@ export default function VisitorTableMobile({
     }
   };
 
+  const getStatusStyle = (status?: string) => {
+    if (!status) return styles.Pending;
+    return STATUS_STYLE_MAP[status] || styles.Pending;
+  };
+
   // Helper function to format date
   const formatDate = (dateString: string) => {
     if (!dateString) return "";
@@ -70,6 +78,15 @@ export default function VisitorTableMobile({
       hour12: true,
     });
   };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#1eb88c" />
+        <Text style={styles.loadingText}>Loading visitors...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1 }}>
@@ -200,8 +217,10 @@ export default function VisitorTableMobile({
 
                     {/* Status */}
                     <View style={styles.colStatus}>
-                      <Text style={[styles.statusBadge, styles[v.status]]}>
-                        {v.status}
+                      <Text
+                        style={[styles.statusBadge, getStatusStyle(v.status)]}
+                      >
+                        {v.status || "—"}
                       </Text>
 
                       {/* Expected schedule for Awaiting status */}
@@ -228,7 +247,7 @@ export default function VisitorTableMobile({
                       <Text
                         style={[
                           styles.statusBadge,
-                          styles[v.occupantAcceptStatus || "Pending"],
+                          getStatusStyle(v.occupantAcceptStatus || "Pending"),
                         ]}
                       >
                         {v.occupantAcceptStatus || "Pending"}
@@ -284,6 +303,18 @@ const styles = StyleSheet.create({
   headerRow: {
     backgroundColor: "#F2F4F7",
     // paddingVertical: 14,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: "#6B7280",
+    fontWeight: "500",
   },
 
   headerText: {
@@ -425,3 +456,11 @@ const styles = StyleSheet.create({
   Accepted: { backgroundColor: "#D1FAE5", color: "#065F46" },
   Pending: { backgroundColor: "#FEF3C7", color: "#92400E" },
 });
+const STATUS_STYLE_MAP: Record<string, any> = {
+  Awaiting: styles.Awaiting,
+  "Checked-In": styles["Checked-In"],
+  "Checked-Out": styles["Checked-Out"],
+  Accepted: styles.Accepted,
+  Rejected: styles.Rejected,
+  Pending: styles.Pending,
+};

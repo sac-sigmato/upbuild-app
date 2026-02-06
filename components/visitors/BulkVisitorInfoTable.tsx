@@ -2,17 +2,15 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   Image,
   Modal,
   StyleSheet,
   Text,
-  TouchableOpacity,
-  View
+  View,
 } from "react-native";
-import { api_url, img_url } from "../../utils/apiLocalhost"; // adjust path
+import { api_url } from "../../utils/apiLocalhost"; // adjust path
 import OccupantBulkResponseModal from "./bulkVisitor/fillForm/OccupantBulkResponseModal"; // implement RN modal
 // import { usePermissions } from "./roleAndPermissionsCheck/permissionContext"; // if you have RN version
 import UpdateBulkVisitorStatusModal from "./bulkVisitor/fillForm/UpdateBulkVisitorStatusModal"; // implement RN modal
@@ -22,6 +20,7 @@ type Props = {
   canEditVisitorStatus: boolean;
   formatDateTime: (date?: string) => string;
   refreshVisitors: () => void;
+  roleSlug: string;
 };
 
 export default function BulkVisitorInfoTable({
@@ -29,9 +28,10 @@ export default function BulkVisitorInfoTable({
   canEditVisitorStatus,
   formatDateTime,
   refreshVisitors,
+  roleSlug,
 }: Props) {
   const [selectedVisitorId, setSelectedVisitorId] = useState<string | null>(
-    null
+    null,
   );
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [occupantModalVisitorId, setOccupantModalVisitorId] = useState<
@@ -39,16 +39,6 @@ export default function BulkVisitorInfoTable({
   >(null);
   const [showOccupantModal, setShowOccupantModal] = useState(false);
   const [loadingApprove, setLoadingApprove] = useState<string | null>(null);
-
-  // If you have a RN permission context, use it; otherwise fallback to empty
-  const permCtx = (() => {
-    try {
-      return 
-    } catch {
-      return { permissions: [], roleSlug: "", loading: false };
-    }
-  })();
-  const { permissions = [], roleSlug = "" } = permCtx || {};
 
   const handleApproveVisitor = async (visitorId: string) => {
     Alert.alert(
@@ -71,7 +61,7 @@ export default function BulkVisitorInfoTable({
                     "Content-Type": "application/json",
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),
                   },
-                }
+                },
               );
 
               // try parse json safely
@@ -93,7 +83,7 @@ export default function BulkVisitorInfoTable({
 
               Alert.alert(
                 "Success",
-                (data && data.message) || "Visitor approved"
+                (data && data.message) || "Visitor approved",
               );
               refreshVisitors();
             } catch (err: any) {
@@ -105,7 +95,7 @@ export default function BulkVisitorInfoTable({
           },
         },
       ],
-      { cancelable: true }
+      { cancelable: true },
     );
   };
 
@@ -118,125 +108,57 @@ export default function BulkVisitorInfoTable({
   }
 
   const renderItem = ({ item }: { item: any }) => {
-    const isOccupant = roleSlug === "occupants";
-    const occupantPending = item.occupantAcceptStatus === "Pending";
     return (
-      <View style={styles.card}>
-        <View style={styles.row}>
-          <View style={styles.leftCol}>
+      <View style={styles.mobileCard}>
+        <View style={styles.cardRow}>
+          {/* LEFT : INFO */}
+          <View style={styles.leftInfo}>
             <Text style={styles.formId}>{item.visitorInfoId}</Text>
 
-            <View style={styles.photoRow}>
-              {item.photo ? (
-                <Image
-                  source={{
-                    uri: item.photo.startsWith("data:")
-                      ? item.photo
-                      : `${img_url}${item.photo}`,
-                  }}
-                  style={styles.avatar}
-                />
-              ) : (
-                <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                  <Text style={styles.avatarPlaceholderText}>-</Text>
-                </View>
-              )}
+            <Text style={styles.name}>{item.name || "-"}</Text>
+            <Text style={styles.phone}>📞 {item.phoneNumber || "-"}</Text>
 
-              <View style={{ marginLeft: 10, flex: 1 }}>
-                <Text style={styles.name}>{item.name}</Text>
-                <Text style={styles.subText}>{item.phoneNumber || "-"}</Text>
-                <Text style={styles.subText}>{item.gender || "-"}</Text>
-                <Text
-                  style={[styles.subText, { maxWidth: 220 }]}
-                  numberOfLines={1}
-                >
-                  {item.address || "-"}
+            <View style={styles.statusRow}>
+              <View style={[styles.badge, badgeColorStyle(item.status)]}>
+                <Text style={styles.badgeText}>
+                  Status: {item.status || "-"}
                 </Text>
               </View>
-            </View>
-          </View>
 
-          <View style={styles.rightCol}>
-            <Text style={styles.meta}>
-              {item.vehicleNumber
-                ? `${item.vehicleType} - ${item.vehicleNumber}`
-                : "-"}
-            </Text>
-
-            {item.vehiclePhoto ? (
-              <Image
-                source={{
-                  uri: item.vehiclePhoto.startsWith("data:")
-                    ? item.vehiclePhoto
-                    : `${img_url}${item.vehiclePhoto}`,
-                }}
-                style={styles.vehiclePhoto}
-              />
-            ) : (
-              <Text style={styles.subText}>-</Text>
-            )}
-
-            <Text style={styles.meta}>{formatDateTime(item.checkInTime)}</Text>
-            <Text style={styles.meta}>{formatDateTime(item.checkOutTime)}</Text>
-
-            <View style={{ marginTop: 6 }}>
-              <View style={styles.badgeRow}>
-                <View style={[styles.badge, badgeColorStyle(item.status)]}>
-                  <Text style={styles.badgeText}>{item.status || "-"}</Text>
-                </View>
-
-                <View
-                  style={[
-                    styles.badge,
-                    badgeColorStyle(item.occupantAcceptStatus, true),
-                    { marginLeft: 8 },
-                  ]}
-                >
-                  <Text style={styles.badgeText}>
-                    {item.occupantAcceptStatus || "Pending"}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {occupantPending && isOccupant && (
-              <TouchableOpacity
-                style={styles.approveBtn}
-                onPress={() => handleApproveVisitor(item._id)}
-                disabled={loadingApprove === item._id}
+              <View
+                style={[
+                  styles.badge,
+                  badgeColorStyle(item.occupantAcceptStatus, true),
+                ]}
               >
-                {loadingApprove === item._id ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.approveText}>Approve</Text>
+                <Text style={styles.badgeText}>
+                  Occupant: {item.occupantAcceptStatus || "Pending"}
+                </Text>
+              </View>
+              {/* APPROVE BUTTON (occupant only, same as WEB) */}
+              {roleSlug === "occupants" &&
+                item.occupantAcceptStatus === "Pending" && (
+                  <Text
+                    onPress={() => handleApproveVisitor(item._id)}
+                    style={[
+                      styles.approveBtn,
+                      loadingApprove === item._id && { opacity: 0.6 },
+                    ]}
+                  >
+                    {loadingApprove === item._id ? "Approving..." : "Approve"}
+                  </Text>
                 )}
-              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* RIGHT : QR */}
+          <View style={styles.qrContainer}>
+            {item.qrCode ? (
+              <Image source={{ uri: item.qrCode }} style={styles.qr} />
+            ) : (
+              <Text style={styles.noQr}>No QR</Text>
             )}
           </View>
-        </View>
-
-        <View style={styles.bottomRow}>
-          {canEditVisitorStatus && (
-            <TouchableOpacity
-              onPress={() => {
-                setSelectedVisitorId(item._id);
-                setShowStatusModal(true);
-              }}
-            >
-              <Text style={styles.overflowMenu}>&#8942;</Text>
-            </TouchableOpacity>
-          )}
-
-          <View style={{ flex: 1 }} />
-
-          {item.qrCode ? (
-            <Image
-              source={{ uri: item.qrCode }} // supports base64 or url
-              style={styles.qr}
-            />
-          ) : (
-            <Text style={styles.grey}>-</Text>
-          )}
         </View>
       </View>
     );
@@ -366,7 +288,6 @@ const styles = StyleSheet.create({
 
   badgeRow: { flexDirection: "row", marginTop: 6 },
   badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  badgeText: { fontSize: 12, fontWeight: "700", color: "#065f46" },
 
   approveBtn: {
     marginTop: 8,
@@ -379,8 +300,6 @@ const styles = StyleSheet.create({
 
   bottomRow: { flexDirection: "row", alignItems: "center", marginTop: 10 },
   overflowMenu: { fontSize: 22, color: "#6b7280" },
-
-  qr: { width: 80, height: 80, borderRadius: 8, marginLeft: 8 },
 
   grey: { color: "#9ca3af" },
 
@@ -396,5 +315,59 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 8,
+  },
+  cardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  leftInfo: {
+    flex: 1,
+    paddingRight: 10,
+  },
+
+  qrContainer: {
+    width: 90,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  qr: {
+    width: 80,
+    height: 80,
+    borderRadius: 0,
+  },
+
+  badgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#374151",
+  },
+  mobileCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 14,
+    marginHorizontal: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+
+  phone: {
+    fontSize: 14,
+    color: "#6b7280",
+    marginBottom: 10,
+  },
+
+  statusRow: {
+    flexDirection: "column",
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  noQr: {
+    textAlign: "center",
+    color: "#9ca3af",
+    marginTop: 12,
   },
 });

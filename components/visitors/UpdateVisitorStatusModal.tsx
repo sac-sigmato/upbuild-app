@@ -77,7 +77,7 @@ export default function UpdateVisitorStatusModal({
 
         const data = await res.json();
         if (!mounted) return;
-        setVisitor(data.visitor ?? null);
+        setVisitor(data?.visitor ?? null);
       } catch (err: any) {
         console.error("fetchVisitor error:", err);
         if (!mounted) return;
@@ -106,7 +106,7 @@ export default function UpdateVisitorStatusModal({
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({ status: "Checked-In" }),
-        }
+        },
       );
 
       const text = await res.text();
@@ -208,8 +208,10 @@ export default function UpdateVisitorStatusModal({
               <Text style={styles.errorText}>{error}</Text>
               <TouchableOpacity
                 onPress={() => {
-                  setVisitor(null);
                   setError(null);
+                  setVisitor(null);
+                  // trigger refetch
+                  setLoading(true);
                 }}
                 style={[
                   styles.btn,
@@ -244,7 +246,18 @@ export default function UpdateVisitorStatusModal({
 
               <View style={styles.row}>
                 <Text style={styles.labelBold}>Visitor Status:</Text>
-                <Text style={styles.value}>{status ?? "—"}</Text>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    status === "Awaiting"
+                      ? styles.awaiting
+                      : status === "Checked-In"
+                        ? styles.checkedIn
+                        : styles.checkedOut,
+                  ]}
+                >
+                  <Text style={styles.statusBadgeText}>{status}</Text>
+                </View>
               </View>
 
               <View style={styles.row}>
@@ -283,7 +296,9 @@ export default function UpdateVisitorStatusModal({
                         isSubmitting && styles.disabled,
                       ]}
                     >
-                      <Text style={styles.btnText}>Mark as Checked-In</Text>
+                      <Text style={styles.btnText}>
+                        {isSubmitting ? "Marking..." : "Mark as Checked-In"}
+                      </Text>
                     </TouchableOpacity>
                   )}
 
@@ -314,6 +329,19 @@ export default function UpdateVisitorStatusModal({
 }
 
 const styles = StyleSheet.create({
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  statusBadgeText: {
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  awaiting: { backgroundColor: "#FEF3C7" },
+  checkedIn: { backgroundColor: "#DBEAFE" },
+  checkedOut: { backgroundColor: "#DCFCE7" },
+
   overlay: {
     flex: 1,
     backgroundColor: "rgba(3,7,18,0.35)",

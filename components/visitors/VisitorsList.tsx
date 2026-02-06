@@ -1,12 +1,13 @@
-// components/visitors/VisitorsList.tsx
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Pressable,
+  RefreshControlProps,
+  ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { getMyPermissions } from "../../utils/getMyPermissions";
 import OccupantResponseModal from "./OccupantResponseModal";
@@ -20,8 +21,17 @@ interface VisitorsListProps {
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+
   selectedVisitorIds: string[];
   setSelectedVisitorIds: (ids: string[]) => void;
+
+  /** ✅ NEW (from parent) */
+  canExportVisitors?: boolean;
+  canRespondToVisitorStatus?: boolean;
+
+  /** ✅ Pull to refresh */
+  refreshControl?: React.ReactElement<RefreshControlProps>;
+
   fetchVisitors?: () => void;
 }
 
@@ -33,10 +43,13 @@ export default function VisitorsList({
   onPageChange,
   selectedVisitorIds,
   setSelectedVisitorIds,
+  canExportVisitors = false,
+  canRespondToVisitorStatus: canRespondProp,
+  refreshControl,
   fetchVisitors,
 }: VisitorsListProps) {
   const [selectedVisitorId, setSelectedVisitorId] = useState<string | null>(
-    null
+    null,
   );
   const [selectedId, setSelectedId] = useState<string>("");
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -45,69 +58,49 @@ export default function VisitorsList({
   const [occupantModalVisitorId, setOccupantModalVisitorId] = useState<
     string | null
   >(null);
+
   const [token, setToken] = useState<string>("");
   const [permissions, setPermissions] = useState<string[]>([]);
   const [roleSlug, setRoleSlug] = useState<string>("");
 
-  // Get token from AsyncStorage
+  /* ---------- TOKEN ---------- */
   useEffect(() => {
-    const getToken = async () => {
-      const storedToken = await AsyncStorage.getItem("token");
-      setToken(storedToken || "");
-    };
-    getToken();
+    AsyncStorage.getItem("token").then((t) => setToken(t || ""));
   }, []);
 
-  // Get permissions
+  /* ---------- PERMISSIONS ---------- */
   useEffect(() => {
     getMyPermissions()
       .then(({ permissions, roleSlug }) => {
         setPermissions(permissions);
         setRoleSlug(roleSlug);
       })
-      .catch((err) => console.error("🔐 Error fetching permissions:", err));
+      .catch(() => {});
   }, []);
 
   const canEditVisitorStatus =
     roleSlug === "security" || permissions.includes("can_edit_visitor_status");
 
-  const canRespondToVisitorStatus = roleSlug === "occupants";
-  
+  const canRespondToVisitorStatus =
+    typeof canRespondProp === "boolean"
+      ? canRespondProp
+      : roleSlug === "occupants";
 
-  // Safe pagination handlers
+  /* ---------- PAGINATION ---------- */
   const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      onPageChange(currentPage + 1);
-    }
+    if (currentPage < totalPages) onPageChange(currentPage + 1);
   };
 
   const handlePrevPage = () => {
-    if (currentPage > 1) {
-      onPageChange(currentPage - 1);
-    }
-  };
-
-  // Safe modal close handlers
-  const handleCloseDetailsModal = () => {
-    setShowDetailsModal(false);
-    setSelectedId("");
-  };
-
-  const handleCloseStatusModal = () => {
-    setShowStatusModal(false);
-    setSelectedVisitorId(null);
-  };
-
-  const handleCloseOccupantModal = () => {
-    setShowOccupantModal(false);
-    setOccupantModalVisitorId(null);
+    if (currentPage > 1) onPageChange(currentPage - 1);
   };
 
   const handleStatusChange = () => {
     fetchVisitors?.();
   };
 
-  if (loading) {
+  /* ---------- LOADING ---------- */
+  if (loading && currentPage === 1) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#1eb88c" />
@@ -116,17 +109,25 @@ export default function VisitorsList({
     );
   }
 
-  if (visitors.length === 0) {
+  /* ---------- EMPTY ---------- */
+  if (!loading && visitors.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.emptyContainer}
+        refreshControl={refreshControl}
+      >
         <Text>No visitors found</Text>
-      </View>
+      </ScrollView>
     );
   }
 
+  /* ---------- MAIN ---------- */
   return (
-    <View style={styles.container}>
-      {/* Use your existing VisitorTable component */}
+    <ScrollView
+      style={styles.container}
+      refreshControl={refreshControl} // ✅ PULL TO REFRESH
+    >
       <VisitorTable
         visitors={visitors}
         loading={loading}
@@ -142,10 +143,10 @@ export default function VisitorsList({
         setShowStatusModal={setShowStatusModal}
       />
 
-      {/* Pagination */}
+      {/* ---------- PAGINATION ---------- */}
       {totalPages > 1 && (
         <View style={styles.pagination}>
-          <TouchableOpacity
+          <Pressable
             style={[
               styles.pageButton,
               currentPage === 1 && styles.disabledButton,
@@ -154,13 +155,13 @@ export default function VisitorsList({
             disabled={currentPage === 1}
           >
             <Text style={styles.buttonText}>Previous</Text>
-          </TouchableOpacity>
+          </Pressable>
 
           <Text style={styles.pageInfo}>
             Page {currentPage} of {totalPages}
           </Text>
 
-          <TouchableOpacity
+          <Pressable
             style={[
               styles.pageButton,
               currentPage === totalPages && styles.disabledButton,
@@ -169,15 +170,18 @@ export default function VisitorsList({
             disabled={currentPage === totalPages}
           >
             <Text style={styles.buttonText}>Next</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       )}
 
-      {/* Modals using your existing components */}
+      {/* ---------- MODALS ---------- */}
       <VisitorDetailsModal
         visitorId={selectedId}
         isOpen={showDetailsModal}
-        onClose={handleCloseDetailsModal}
+        onClose={() => {
+          setShowDetailsModal(false);
+          setSelectedId("");
+        }}
         token={token}
       />
 
@@ -185,7 +189,10 @@ export default function VisitorsList({
         <UpdateVisitorStatusModal
           visitorId={selectedVisitorId}
           isOpen={showStatusModal}
-          onClose={handleCloseStatusModal}
+          onClose={() => {
+            setShowStatusModal(false);
+            setSelectedVisitorId(null);
+          }}
           token={token}
           onStatusChange={handleStatusChange}
         />
@@ -195,14 +202,18 @@ export default function VisitorsList({
         <OccupantResponseModal
           visitorId={occupantModalVisitorId}
           isOpen={showOccupantModal}
-          onClose={handleCloseOccupantModal}
+          onClose={() => {
+            setShowOccupantModal(false);
+            setOccupantModalVisitorId(null);
+          }}
           onStatusChange={handleStatusChange}
         />
       )}
-    </View>
+    </ScrollView>
   );
 }
 
+/* ---------- STYLES ---------- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -215,12 +226,11 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   emptyContainer: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
   },
-  // Pagination Styles
   pagination: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -235,7 +245,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: "#1eb88c",
     borderRadius: 8,
-    minWidth: 80,
+    minWidth: 90,
   },
   disabledButton: {
     backgroundColor: "#cbd5e1",

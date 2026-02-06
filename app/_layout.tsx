@@ -52,6 +52,18 @@ export default function RootLayout() {
             options={{ title: "Add Visitor", headerShown: false }}
           />
           <Stack.Screen name="profile/index" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="visitors/bulkVisit/index"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="visitors/bulkVisit/bulkVisitorDetails/index"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="visitors/scan/index"
+            options={{ headerShown: false }}
+          />
         </Stack>
 
         {isLoggedIn && <AuthenticatedSocketHandlers />}

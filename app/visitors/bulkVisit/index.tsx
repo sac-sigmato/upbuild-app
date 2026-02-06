@@ -1,52 +1,66 @@
 // app/apartments/visitors/bulk/index.tsx
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useEffect, useState } from "react";
+import React, {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   ToastAndroid,
-  TouchableOpacity,
   View,
 } from "react-native";
 
-import { api_url } from "../../../utils/apiLocalhost";
+import { api_url } from "@/utils/apiLocalhost";
+import { getMyPermissions } from "@/utils/getMyPermissions";
+import { useRouter } from "expo-router";
+
+// ✅ IMPORT FILTER + LIST + MODAL
+import BulkVisitorsFilters from "@/components/visitors/bulkVisitor/BulkVisitorsFilters";
+import BulkVisitorsList from "@/components/visitors/bulkVisitor/BulkVisitorsList";
+import ExportDateRangeModal from "@/components/visitors/ExportDateRangeModal";
 
 const DEFAULT_LIMIT = 10;
-const COL_WIDTH = 140;
 
-// ---------- Helpers ----------
-const nativeToast = (msg: string) => {
-  if (Platform.OS === "android") ToastAndroid.show(msg, ToastAndroid.SHORT);
-  else Alert.alert("", msg);
+/* ---------- Helpers ---------- */
+const toast = (msg: string) => {
+  if (Platform.OS === "android") {
+    ToastAndroid.show(msg, ToastAndroid.SHORT);
+  } else {
+    Alert.alert("", msg);
+  }
 };
 
-// ---------- Notes Modal ----------
-const NotesModal = ({ isVisible, onClose, notes }: any) => {
-  if (!isVisible) return null;
+/* ---------- Main ---------- */
+const BulkVisitors = forwardRef((props, ref) => {
+  const [refreshing, setRefreshing] = useState(false);
 
-  return (
-    <View style={styles.modalOverlay}>
-      <View style={styles.modalContent}>
-        <Text style={styles.modalTitle}>Notes</Text>
-        <Text style={styles.notesText}>{notes || "No notes available"}</Text>
+  useImperativeHandle(ref, () => ({
+    refresh: async () => {
+      try {
+        setRefreshing(true);
+        setCurrentPage(1);
+        await fetchBulkVisitors(1);
+        setSelectedVisitorIds([]);
+      } finally {
+        setRefreshing(false);
+      }
+    },
+  }));
 
-        <TouchableOpacity onPress={onClose} style={styles.modalCloseBtn}>
-          <Text style={styles.modalCloseText}>Close</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-};
+  const router = useRouter();
 
-// ---------- Main ----------
-export default function BulkVisitors({ onBack }: { onBack?: () => void }) {
   const [visitors, setVisitors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [currentPage, setCurrentPage] = useState(1);
   const [totalVisitors, setTotalVisitors] = useState(0);
 
@@ -55,9 +69,22 @@ export default function BulkVisitors({ onBack }: { onBack?: () => void }) {
   const [toDate, setToDate] = useState("");
   const [limit, setLimit] = useState(DEFAULT_LIMIT);
 
-  const [notesModalVisible, setNotesModalVisible] = useState(false);
-  const [selectedNotes, setSelectedNotes] = useState("");
+  const [selectedVisitorIds, setSelectedVisitorIds] = useState<string[]>([]);
 
+  const [canExport, setCanExport] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const [showDateRangeModal, setShowDateRangeModal] = useState(false);
+
+  /* ---------- Permissions ---------- */
+  useEffect(() => {
+    (async () => {
+      const { permissions } = await getMyPermissions();
+      setCanExport(permissions.includes("can_export_visitors_data"));
+    })();
+  }, []);
+
+  /* ---------- Helpers ---------- */
   const getApartmentId = async () => {
     const raw = await AsyncStorage.getItem("upbuild_user_store");
     if (!raw) return null;
@@ -65,9 +92,11 @@ export default function BulkVisitors({ onBack }: { onBack?: () => void }) {
     return parsed?.state?.user?.apartment ?? null;
   };
 
+  /* ---------- Fetch ---------- */
   const fetchBulkVisitors = async (page = 1) => {
     try {
       setLoading(true);
+
       const token = await AsyncStorage.getItem("token");
       const apartmentId = await getApartmentId();
 
@@ -87,10 +116,12 @@ export default function BulkVisitors({ onBack }: { onBack?: () => void }) {
       });
 
       const data = await res.json();
+
       setVisitors(data.visitors || []);
       setTotalVisitors(data.total || 0);
+      setSelectedVisitorIds([]);
     } catch (err: any) {
-      nativeToast(err?.message || "Failed to load bulk visitors");
+      toast(err?.message || "Failed to load bulk visitors");
     } finally {
       setLoading(false);
     }
@@ -102,251 +133,241 @@ export default function BulkVisitors({ onBack }: { onBack?: () => void }) {
 
   const totalPages = Math.max(1, Math.ceil(totalVisitors / limit));
 
+  /* ---------- Export Selected OR Open Modal ---------- */
+  const handleExport = async () => {
+    // 🟢 SAME AS WEB
+    if (selectedVisitorIds.length === 0) {
+      setShowDateRangeModal(true);
+      return;
+    }
+
+    try {
+      setExporting(true);
+
+      const token = await AsyncStorage.getItem("token");
+      const apartmentId = await getApartmentId();
+
+      if (!token || !apartmentId) {
+        toast("Authentication error");
+        return;
+      }
+
+      const res = await fetch(`${api_url}export/visitors/bulk/pdf`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          visitorIds: selectedVisitorIds,
+          apartmentId,
+        }),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        console.error(txt);
+        toast("Export failed");
+        return;
+      }
+
+      const blob = await res.blob();
+      const base64 = await blobToBase64(blob);
+
+      await saveAndSharePdf(base64, `bulk_visitors_${Date.now()}.pdf`);
+
+      toast("Export successful");
+      setSelectedVisitorIds([]);
+    } catch (e) {
+      console.error(e);
+      toast("Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  /* ---------- Export By Date Range ---------- */
+  const handleExportByDateRange = async (from: string, to: string) => {
+    try {
+      setExporting(true);
+
+      const token = await AsyncStorage.getItem("token");
+      const apartmentId = await getApartmentId();
+
+      const res = await fetch(`${api_url}export/visitors/bulk/pdf`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fromDate: from,
+          toDate: to,
+          apartmentId,
+        }),
+      });
+
+      if (!res.ok) {
+        toast("Export failed");
+        return;
+      }
+
+      const blob = await res.blob();
+      const base64 = await blobToBase64(blob);
+
+      await saveAndSharePdf(base64, `bulk_visitors_${from}_to_${to}.pdf`);
+
+      toast("Export successful");
+      setSelectedVisitorIds([]);
+    } catch (e) {
+      console.error(e);
+      toast("Export failed");
+    } finally {
+      setExporting(false);
+      setShowDateRangeModal(false);
+    }
+  };
+
+  /* ---------- UI ---------- */
   return (
     <View style={styles.container}>
-      {/* FILTER + ACTION ROW (MATCHES SS) */}
+      <BulkVisitorsFilters
+        fromDate={fromDate}
+        toDate={toDate}
+        searchText={searchText}
+        selectedLimit={limit}
+        selectedVisitorIds={selectedVisitorIds}
+        canExportVisitors={canExport}
+        loadingExport={exporting}
+        handleExport={handleExport}
+        setFromDate={(v) => {
+          setFromDate(v);
+          setCurrentPage(1);
+        }}
+        setToDate={(v) => {
+          setToDate(v);
+          setCurrentPage(1);
+        }}
+        setSearchText={(v) => {
+          setSearchText(v);
+          setCurrentPage(1);
+        }}
+        setSelectedLimit={(v) => {
+          setLimit(v);
+          setCurrentPage(1);
+        }}
+        setCurrentPage={setCurrentPage}
+      />
 
-      {/* TABLE */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={styles.table}>
-          <View style={[styles.row, styles.tableHeader]}>
-            {[
-              "Bulk Visitor Id",
-              "Flat / Apartment",
-              "Event",
-              "Visitor Expected Count",
-              "Type",
-              "Date",
-              "Time",
-              "Notes",
-              "Details",
-            ].map((h) => (
-              <Text key={h} style={styles.th}>
-                {h}
-              </Text>
-            ))}
-          </View>
-
-          {loading ? (
-            <View style={styles.loader}>
-              <ActivityIndicator color="#1eb88c" />
-            </View>
-          ) : visitors.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text>No bulk visitors found</Text>
-            </View>
-          ) : (
-            visitors.map((v) => (
-              <View key={v._id} style={styles.row}>
-                <Text style={styles.cell}>{v.bulkVisitorId}</Text>
-                <Text style={styles.cell}>
-                  {v.isForEntireApartment
-                    ? "Entire Apartment"
-                    : `${v.flatName}-${v.blockName}`}
-                </Text>
-                <Text style={styles.cell}>{v.eventPurpose}</Text>
-                <Text style={styles.cell}>{v.expectedCount}</Text>
-                <Text style={styles.cell}>Single Day</Text>
-                <Text style={styles.cell}>
-                  {v.visitDate
-                    ? new Date(v.visitDate).toLocaleDateString()
-                    : "-"}
-                </Text>
-                <Text style={styles.cell}>
-                  {v.fromTime} - {v.toTime}
-                </Text>
-
-                <TouchableOpacity
-                  onPress={() => {
-                    setSelectedNotes(v.notes || "");
-                    setNotesModalVisible(true);
-                  }}
-                >
-                  <Text style={styles.link}>View</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity>
-                  <Text style={styles.link}>View</Text>
-                </TouchableOpacity>
-              </View>
-            ))
-          )}
-        </View>
-      </ScrollView>
-
-      {/* PAGINATION */}
-      {totalPages > 1 && (
-        <View style={styles.pagination}>
-          <TouchableOpacity
-            disabled={currentPage === 1}
-            onPress={() => setCurrentPage((p) => p - 1)}
-          >
-            <Text>{"<<"}</Text>
-          </TouchableOpacity>
-
-          <View style={styles.pageBox}>
-            <Text style={styles.pageText}>{currentPage}</Text>
-          </View>
-
-          <TouchableOpacity
-            disabled={currentPage === totalPages}
-            onPress={() => setCurrentPage((p) => p + 1)}
-          >
-            <Text>{">>"}</Text>
-          </TouchableOpacity>
+      {selectedVisitorIds.length > 0 && (
+        <View style={styles.selectedBar}>
+          <Text style={styles.selectedText}>
+            {selectedVisitorIds.length} selected
+          </Text>
         </View>
       )}
 
-      <NotesModal
-        isVisible={notesModalVisible}
-        onClose={() => setNotesModalVisible(false)}
-        notes={selectedNotes}
+      {loading && currentPage === 1 ? (
+        <View style={styles.loader}>
+          <ActivityIndicator size="large" color="#1eb88c" />
+        </View>
+      ) : (
+        <ScrollView
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={async () => {
+                setRefreshing(true);
+                await fetchBulkVisitors(1);
+                setRefreshing(false);
+              }}
+              colors={["#1eb88c"]}
+              tintColor="#1eb88c"
+            />
+          }
+        >
+          <BulkVisitorsList
+            visitors={visitors}
+            loading={loading}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            selectedVisitorIds={selectedVisitorIds}
+            setSelectedVisitorIds={setSelectedVisitorIds}
+            onViewDetails={(id) => {
+              router.push({
+                pathname: "/visitors/bulkVisit/bulkVisitorDetails",
+                params: { id },
+              });
+            }}
+          />
+        </ScrollView>
+      )}
+
+      <ExportDateRangeModal
+        isOpen={showDateRangeModal}
+        onClose={() => setShowDateRangeModal(false)}
+        onExport={handleExportByDateRange}
       />
     </View>
   );
-}
+});
 
-// ---------- STYLES ----------
+export default BulkVisitors;
+
+/* ---------- Helpers ---------- */
+const blobToBase64 = (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = (reader.result as string).split(",")[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
+const saveAndSharePdf = async (base64: string, filename: string) => {
+  const { writeAsStringAsync, cacheDirectory, EncodingType } =
+    await import("expo-file-system/legacy");
+
+  const fileUri = `${cacheDirectory}${filename}`;
+
+  await writeAsStringAsync(fileUri, base64, {
+    encoding: EncodingType.Base64,
+  });
+
+  const Sharing = await import("expo-sharing");
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(fileUri, {
+      mimeType: "application/pdf",
+    });
+  }
+};
+
+/* ---------- Styles ---------- */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f6f7f9" },
-
-  pageHeader: { paddingHorizontal: 16, paddingTop: 16 },
-  backText: { color: "#1eb88c", fontWeight: "700" },
-
-  headerCard: {
-    backgroundColor: "#fff",
-    margin: 16,
-    padding: 16,
-    borderRadius: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
+  container: {
+    flex: 1,
+    backgroundColor: "#f6f7f9",
+    // padding: 16,
   },
-
-  headerLeft: { flexDirection: "row", gap: 12 },
-  iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#1eb88c",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  headerTitle: { fontSize: 16, fontWeight: "700" },
-  headerSubtitle: { fontSize: 13, color: "#6b7280" },
-
-  headerActions: { flexDirection: "row", gap: 10 },
-  exportBtn: {
-    backgroundColor: "#1eb88c",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  addBtn: {
-    backgroundColor: "#1eb88c",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  btnText: { color: "#fff", fontWeight: "700" },
-
-  filterCard: {
-    backgroundColor: "#fff",
-    marginHorizontal: 16,
-    padding: 16,
-    borderRadius: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-
-  filterLeft: { flex: 2 },
-  filterRight: { flex: 1, gap: 12 },
-
-  label: { fontSize: 12, color: "#6b7280", marginBottom: 4 },
-
-  searchInput: {
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 10,
-    padding: 12,
-  },
-
-  dateRow: { flexDirection: "row", gap: 12 },
-  dateBox: { flex: 1 },
-
-  dateInput: {
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 10,
-    padding: 12,
-  },
-
-  perPageBox: { width: 120 },
-  perPageSelect: {
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 10,
-    padding: 12,
-    alignItems: "center",
-  },
-
-  table: { backgroundColor: "#fff", margin: 16, borderRadius: 12 },
-  tableHeader: {
-    backgroundColor: "#f4f6f8",
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-  },
-
-  row: {
-    flexDirection: "row",
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-
-  th: { width: COL_WIDTH, fontSize: 12, fontWeight: "700" },
-  cell: { width: COL_WIDTH, fontSize: 13 },
-  link: { width: COL_WIDTH, color: "#1eb88c", fontWeight: "700" },
-
-  loader: { padding: 24 },
-  emptyContainer: { padding: 24, alignItems: "center" },
-
-  pagination: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 12,
-    marginVertical: 20,
-  },
-  pageBox: {
-    backgroundColor: "#1eb88c",
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  pageText: { color: "#fff", fontWeight: "700" },
-
-  modalOverlay: {
-    position: "absolute",
-    inset: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    padding: 20,
-    borderRadius: 12,
-    width: "90%",
-  },
-  modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 12 },
-  modalCloseBtn: {
-    marginTop: 12,
-    backgroundColor: "#1eb88c",
-    padding: 10,
+  selectedBar: {
+    backgroundColor: "#f0fdf9",
+    padding: 8,
     borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#c8e7dd",
+  },
+  selectedText: {
+    fontSize: 12,
+    color: "#1e7f65",
+    fontWeight: "600",
+  },
+  loader: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
   },
-  modalCloseText: { color: "#fff", fontWeight: "700" },
-  notesText: { fontSize: 14 },
 });

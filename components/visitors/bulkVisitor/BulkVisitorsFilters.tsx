@@ -1,13 +1,12 @@
 "use client";
+
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useRouter } from "expo-router";
 import {
   Calendar,
   ChevronDown,
   Download,
   Filter,
   Search,
-  UserPlus,
   X,
 } from "lucide-react-native";
 import React, { useState } from "react";
@@ -25,25 +24,24 @@ import {
   View,
 } from "react-native";
 
+/* ---------- Props ---------- */
 type Props = {
   fromDate: string;
   toDate: string;
   searchText: string;
-  selectedStatus: string;
-  selectedAcceptStatus: string;
   selectedLimit: number;
+
+  /** ✅ EXPORT (same as VisitorsFilters) */
   selectedVisitorIds: string[];
   canExportVisitors: boolean;
   loadingExport: boolean;
+  handleExport: () => void;
 
   setFromDate: (val: string) => void;
   setToDate: (val: string) => void;
   setSearchText: (val: string) => void;
-  setSelectedStatus: (val: string) => void;
-  setSelectedAcceptStatus: (val: string) => void;
   setSelectedLimit: (val: number) => void;
   setCurrentPage: (val: number) => void;
-  handleExport: () => void;
 };
 
 const nativeToast = (msg: string) => {
@@ -53,7 +51,7 @@ const nativeToast = (msg: string) => {
 
 const { height: screenHeight } = Dimensions.get("window");
 
-// Custom Dropdown Component with Individual Modal
+/* ---------- Dropdown ---------- */
 const CustomDropdown = ({
   label,
   value,
@@ -65,77 +63,54 @@ const CustomDropdown = ({
   items: { label: string; value: string }[];
   onValueChange: (value: string) => void;
 }) => {
-  const [showDropdownModal, setShowDropdownModal] = useState(false);
-
-  const selectedItem = items.find((item) => item.value === value) || items[0];
-
-  const handleSelect = (itemValue: string) => {
-    onValueChange(itemValue);
-    setShowDropdownModal(false);
-  };
+  const [open, setOpen] = useState(false);
+  const selected = items.find((i) => i.value === value) || items[0];
+  const [showNoSelectionModal, setShowNoSelectionModal] = useState(false);
 
   return (
     <View style={styles.dropdownContainer}>
       <Text style={styles.inputLabel}>{label}</Text>
-      <TouchableOpacity
-        style={styles.dropdown}
-        onPress={() => setShowDropdownModal(true)}
-      >
-        <Text style={styles.dropdownText}>
-          {selectedItem?.label || "Select..."}
-        </Text>
+
+      <TouchableOpacity style={styles.dropdown} onPress={() => setOpen(true)}>
+        <Text style={styles.dropdownText}>{selected.label}</Text>
         <ChevronDown size={16} color="#6b7280" />
       </TouchableOpacity>
 
-      {/* Dropdown Options Modal */}
-      <Modal
-        visible={showDropdownModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowDropdownModal(false)}
-      >
+      <Modal transparent visible={open} animationType="fade">
         <TouchableOpacity
           style={styles.dropdownModalOverlay}
           activeOpacity={1}
-          onPress={() => setShowDropdownModal(false)}
+          onPress={() => setOpen(false)}
         >
           <View style={styles.dropdownModalContent}>
             <View style={styles.dropdownModalHeader}>
               <Text style={styles.dropdownModalTitle}>{label}</Text>
-              <TouchableOpacity
-                onPress={() => setShowDropdownModal(false)}
-                style={styles.dropdownCloseButton}
-              >
-                <X size={20} color="#6b7280" />
+              <TouchableOpacity onPress={() => setOpen(false)}>
+                <X size={18} color="#6b7280" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView
-              style={styles.dropdownModalScrollView}
-              showsVerticalScrollIndicator={true}
-            >
-              {items.map((item, index) => (
+            <ScrollView>
+              {items.map((item) => (
                 <TouchableOpacity
                   key={item.value}
-                  style={[
-                    styles.dropdownModalOption,
-                    index === items.length - 1 &&
-                      styles.dropdownModalOptionLast,
-                  ]}
-                  onPress={() => handleSelect(item.value)}
+                  style={styles.dropdownModalOption}
+                  onPress={() => {
+                    onValueChange(item.value);
+                    setOpen(false);
+                  }}
                 >
                   <Text
                     style={[
                       styles.dropdownModalOptionText,
-                      value === item.value &&
-                        styles.dropdownModalOptionTextSelected,
+                      value === item.value && {
+                        color: "#1eb88c",
+                        fontWeight: "600",
+                      },
                     ]}
                   >
                     {item.label}
                   </Text>
-                  {value === item.value && (
-                    <View style={styles.selectedIndicator} />
-                  )}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -146,95 +121,42 @@ const CustomDropdown = ({
   );
 };
 
-export default function VisitorsFilters({
+/* ---------- Main ---------- */
+export default function BulkVisitorsFilters({
   fromDate,
   toDate,
   searchText,
-  selectedStatus,
-  selectedAcceptStatus,
   selectedLimit,
   selectedVisitorIds,
   canExportVisitors,
   loadingExport,
+  handleExport,
   setFromDate,
   setToDate,
   setSearchText,
-  setSelectedStatus,
-  setSelectedAcceptStatus,
   setSelectedLimit,
   setCurrentPage,
-  handleExport,
 }: Props) {
-  const router = useRouter();
-
+  const [showFilterModal, setShowFilterModal] = useState(false);
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
-  const [showFilterModal, setShowFilterModal] = useState(false);
 
-  const onChangeFrom = (_: any, selected?: Date) => {
-    setShowFromPicker(false);
-    if (selected) {
-      const iso = selected.toISOString().split("T")[0];
-      setFromDate(iso);
-    }
-  };
-
-  const onChangeTo = (_: any, selected?: Date) => {
-    setShowToPicker(false);
-    if (selected) {
-      const iso = selected.toISOString().split("T")[0];
-      setToDate(iso);
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "Select date";
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
+  const formatDate = (val: string) =>
+    val
+      ? new Date(val).toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })
+      : "Select date";
 
   const clearFilters = () => {
     setFromDate("");
     setToDate("");
-    setSelectedStatus("");
-    setSelectedAcceptStatus("");
     setSelectedLimit(10);
     setCurrentPage(1);
     setShowFilterModal(false);
   };
-
-  const applyFilters = () => {
-    setCurrentPage(1);
-    setShowFilterModal(false);
-  };
-
-  const hasActiveFilters =
-    fromDate ||
-    toDate ||
-    selectedStatus ||
-    selectedAcceptStatus ||
-    selectedLimit !== 10;
-
-  // Dropdown options
-  const statusOptions = [
-    { label: "All Status", value: "" },
-    { label: "Awaiting", value: "Awaiting" },
-    { label: "Checked-In", value: "Checked-In" },
-    { label: "Checked-Out", value: "Checked-Out" },
-    { label: "Wrong Entry", value: "Wrong Entry" },
-  ];
-
-  const acceptStatusOptions = [
-    { label: "All Responses", value: "" },
-    { label: "Pending", value: "Pending" },
-    { label: "Accepted", value: "Accepted" },
-    { label: "Rejected", value: "Rejected" },
-    { label: "N/A", value: "N/A" },
-  ];
 
   const limitOptions = [
     { label: "10 items", value: "10" },
@@ -243,30 +165,38 @@ export default function VisitorsFilters({
     { label: "100 items", value: "100" },
   ];
 
+  const hasActiveFilters = fromDate || toDate || selectedLimit !== 10;
+
   return (
     <View style={styles.container}>
-      {/* Header Section */}
       {/* Header Card */}
       <View style={styles.card}>
-        {/* Title + Actions */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>Visitors Management</Text>
-            <Text style={styles.subtitle}>Manage apartment visitors</Text>
+            <Text style={styles.title}>Bulk Visitors</Text>
+            <Text style={styles.subtitle}>
+              Manage apartment bulk visitor entries
+            </Text>
           </View>
 
+          {/* ✅ ACTION BUTTONS (MATCH VisitorsFilters) */}
           <View style={styles.actionButtons}>
-            <TouchableOpacity
-              onPress={handleExport}
-              disabled={loadingExport}
-              style={styles.circleButton}
-            >
-              {loadingExport ? (
-                <ActivityIndicator size="small" color="#1EB88C" />
-              ) : (
-                <Download size={18} color="#1EB88C" />
-              )}
-            </TouchableOpacity>
+            {canExportVisitors && (
+              <TouchableOpacity
+                onPress={handleExport} // ✅ ALWAYS CALL
+                disabled={loadingExport}
+                style={[
+                  styles.circleButton,
+                  loadingExport && styles.buttonDisabled,
+                ]}
+              >
+                {loadingExport ? (
+                  <ActivityIndicator size="small" color="#1EB88C" />
+                ) : (
+                  <Download size={18} color="#1EB88C" />
+                )}
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               onPress={() => setShowFilterModal(true)}
@@ -277,14 +207,6 @@ export default function VisitorsFilters({
             >
               <Filter size={18} color={hasActiveFilters ? "#fff" : "#1EB88C"} />
             </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => router.push("/visitors/add" as any)}
-              style={styles.addButton}
-            >
-              <UserPlus size={16} color="#fff" />
-              {/* <Text style={styles.addButtonText}>Add visitor</Text> */}
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -292,155 +214,102 @@ export default function VisitorsFilters({
         <View style={styles.searchContainer}>
           <Search size={16} color="#6B7280" />
           <TextInput
-            placeholder="Search visitors, phone, flat, occupant..."
+            placeholder="Search event, flat, block..."
             value={searchText}
-            onChangeText={(text) => {
-              setSearchText(text);
+            onChangeText={(t) => {
+              setSearchText(t);
               setCurrentPage(1);
             }}
             style={styles.searchInput}
-            placeholderTextColor="#9CA3AF"
           />
         </View>
       </View>
 
-      {/* Selected Count */}
-      {selectedVisitorIds.length > 0 && (
-        <View style={styles.selectedContainer}>
-          <Text style={styles.selectedText}>
-            {selectedVisitorIds.length} visitors selected
-          </Text>
-          {/* {canExportVisitors && (
-            <TouchableOpacity
-              onPress={handleExport}
-              disabled={loadingExport}
-              style={styles.exportSmallButton}
-            >
-              <Text style={styles.exportSmallText}>
-                {loadingExport ? "Exporting..." : "Export"}
-              </Text>
-            </TouchableOpacity>
-          )} */}
-        </View>
-      )}
-
       {/* Filter Modal */}
-      <Modal
-        visible={showFilterModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowFilterModal(false)}
-      >
+      <Modal transparent animationType="slide" visible={showFilterModal}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            {/* Modal Header */}
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Filter Visitors</Text>
-              <TouchableOpacity
-                onPress={() => setShowFilterModal(false)}
-                style={styles.closeButton}
-              >
+              <Text style={styles.modalTitle}>Filter Bulk Visitors</Text>
+              <TouchableOpacity onPress={() => setShowFilterModal(false)}>
                 <X size={20} color="#6b7280" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView
-              style={styles.modalScrollView}
-              showsVerticalScrollIndicator={false}
-            >
+            <ScrollView>
               {/* Date Range */}
               <View style={styles.modalSection}>
                 <Text style={styles.sectionTitle}>Date Range</Text>
+
                 <View style={styles.dateRow}>
-                  <View style={styles.dateInputContainer}>
-                    <Text style={styles.inputLabel}>From Date</Text>
-                    <TouchableOpacity
-                      onPress={() => setShowFromPicker(true)}
-                      style={styles.dateInput}
-                    >
-                      <Calendar size={16} color="#6b7280" />
-                      <Text style={styles.dateInputText}>
-                        {formatDate(fromDate)}
-                      </Text>
-                    </TouchableOpacity>
-                    {showFromPicker && (
-                      <DateTimePicker
-                        value={fromDate ? new Date(fromDate) : new Date()}
-                        mode="date"
-                        display="default"
-                        onChange={onChangeFrom}
-                      />
-                    )}
-                  </View>
+                  <TouchableOpacity
+                    style={styles.dateInput}
+                    onPress={() => setShowFromPicker(true)}
+                  >
+                    <Calendar size={16} color="#6b7280" />
+                    <Text>{formatDate(fromDate)}</Text>
+                  </TouchableOpacity>
 
-                  <View style={styles.dateInputContainer}>
-                    <Text style={styles.inputLabel}>To Date</Text>
-                    <TouchableOpacity
-                      onPress={() => setShowToPicker(true)}
-                      style={styles.dateInput}
-                    >
-                      <Calendar size={16} color="#6b7280" />
-                      <Text style={styles.dateInputText}>
-                        {formatDate(toDate)}
-                      </Text>
-                    </TouchableOpacity>
-                    {showToPicker && (
-                      <DateTimePicker
-                        value={toDate ? new Date(toDate) : new Date()}
-                        mode="date"
-                        display="default"
-                        onChange={onChangeTo}
-                      />
-                    )}
-                  </View>
+                  <TouchableOpacity
+                    style={styles.dateInput}
+                    onPress={() => setShowToPicker(true)}
+                  >
+                    <Calendar size={16} color="#6b7280" />
+                    <Text>{formatDate(toDate)}</Text>
+                  </TouchableOpacity>
                 </View>
+
+                {showFromPicker && (
+                  <DateTimePicker
+                    value={fromDate ? new Date(fromDate) : new Date()}
+                    mode="date"
+                    onChange={(_, d) => {
+                      setShowFromPicker(false);
+                      d && setFromDate(d.toISOString().split("T")[0]);
+                    }}
+                  />
+                )}
+
+                {showToPicker && (
+                  <DateTimePicker
+                    value={toDate ? new Date(toDate) : new Date()}
+                    mode="date"
+                    onChange={(_, d) => {
+                      setShowToPicker(false);
+                      d && setToDate(d.toISOString().split("T")[0]);
+                    }}
+                  />
+                )}
               </View>
 
-              {/* Status Filters */}
-              <View style={styles.modalSection}>
-                <Text style={styles.sectionTitle}>Status</Text>
-
-                <CustomDropdown
-                  label="Visitor Status"
-                  value={selectedStatus}
-                  items={statusOptions}
-                  onValueChange={setSelectedStatus}
-                />
-
-                <CustomDropdown
-                  label="Accept Status"
-                  value={selectedAcceptStatus}
-                  items={acceptStatusOptions}
-                  onValueChange={setSelectedAcceptStatus}
-                />
-              </View>
-
-              {/* Display Settings */}
+              {/* Display */}
               <View style={styles.modalSection}>
                 <Text style={styles.sectionTitle}>Display</Text>
                 <CustomDropdown
                   label="Items per page"
-                  value={selectedLimit.toString()}
+                  value={String(selectedLimit)}
                   items={limitOptions}
-                  onValueChange={(value) => setSelectedLimit(Number(value))}
+                  onValueChange={(v) => setSelectedLimit(Number(v))}
                 />
               </View>
             </ScrollView>
 
-            {/* Modal Footer Buttons */}
             <View style={styles.modalFooter}>
               <TouchableOpacity
                 onPress={clearFilters}
                 style={styles.clearButton}
               >
-                <Text style={styles.clearButtonText}>Clear All</Text>
+                <Text style={styles.clearButtonText}>Clear</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={applyFilters}
+                onPress={() => {
+                  setCurrentPage(1);
+                  setShowFilterModal(false);
+                }}
                 style={styles.applyButton}
               >
-                <Text style={styles.applyButtonText}>Apply Filters</Text>
+                <Text style={styles.applyButtonText}>Apply</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -449,6 +318,8 @@ export default function VisitorsFilters({
     </View>
   );
 }
+
+// ---------- STYLES ----------
 
 const styles = StyleSheet.create({
   container: {
