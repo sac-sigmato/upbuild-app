@@ -35,7 +35,6 @@
       "bundleIdentifier": "com.yourcompany.upbuildapp"
     },
     "android": {
-      "useNextNotificationsApi": true,
       "package": "com.yourcompany.upbuildapp",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
@@ -51,8 +50,7 @@
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.MANAGE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
@@ -61,6 +59,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-notifications",
       [
         "expo-splash-screen",
         {
