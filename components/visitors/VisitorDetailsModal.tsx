@@ -3,15 +3,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
-  Linking,
   Modal,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { api_url, img_url } from "../../utils/apiLocalhost";
 
@@ -439,7 +437,7 @@ export default function VisitorDetailsModal({
                 </View>
 
                 {/* QR CODE */}
-                {visitor.qrCode && (
+                {/* {visitor.qrCode && (
                   <View style={styles.section}>
                     <Text style={styles.sectionTitle}>QR Code</Text>
                     <View style={styles.qrContainer}>
@@ -462,7 +460,7 @@ export default function VisitorDetailsModal({
                       <Text style={styles.qrLabel}>Tap to open QR</Text>
                     </View>
                   </View>
-                )}
+                )} */}
               </ScrollView>
             ) : (
               <View style={styles.center}>

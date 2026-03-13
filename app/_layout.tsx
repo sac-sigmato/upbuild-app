@@ -63,10 +63,10 @@ export default function RootLayout() {
             name="visitors/bulkVisit/bulkVisitorDetails/index"
             options={{ headerShown: false }}
           />
-          <Stack.Screen
+          {/* <Stack.Screen
             name="visitors/scan/index"
             options={{ headerShown: false }}
-          />
+          /> */}
         </Stack>
 
         {isLoggedIn && <AuthenticatedSocketHandlers />}

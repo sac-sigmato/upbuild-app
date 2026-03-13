@@ -28,7 +28,7 @@ import BulkVisitorsFilters from "@/components/visitors/bulkVisitor/BulkVisitorsF
 import BulkVisitorsList from "@/components/visitors/bulkVisitor/BulkVisitorsList";
 import ExportDateRangeModal from "@/components/visitors/ExportDateRangeModal";
 
-const DEFAULT_LIMIT = 10;
+const DEFAULT_LIMIT = 5;
 
 /* ---------- Helpers ---------- */
 const toast = (msg: string) => {

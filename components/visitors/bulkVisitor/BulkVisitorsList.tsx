@@ -1,11 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -34,7 +35,7 @@ type BulkVisitor = {
 };
 
 type Props = {
-  visitors: BulkVisitor[];
+  visitors?: BulkVisitor[]; // made optional, default to []
   loading: boolean;
   currentPage: number;
   totalPages: number;
@@ -54,7 +55,7 @@ const toast = (msg: string) => {
 };
 
 export default function BulkVisitorsList({
-  visitors,
+  visitors = [],
   loading,
   currentPage,
   totalPages,
@@ -71,29 +72,50 @@ export default function BulkVisitorsList({
   const [permissions, setPermissions] = useState<string[]>([]);
   const [roleSlug, setRoleSlug] = useState("");
 
+  // Prevent state updates after unmount
+  const isMounted = useRef(true);
   useEffect(() => {
+    isMounted.current = true;
     (async () => {
-      const { permissions, roleSlug } = await getMyPermissions();
-      setPermissions(permissions || []);
-      setRoleSlug(roleSlug || "");
+      try {
+        const { permissions, roleSlug } = await getMyPermissions();
+        if (isMounted.current) {
+          setPermissions(permissions || []);
+          setRoleSlug(roleSlug || "");
+        }
+      } catch {
+        // ignore – permissions stay empty
+      }
     })();
+    return () => {
+      isMounted.current = false;
+    };
   }, []);
 
   const canCopyLink = permissions.includes("can_copy_bulk_visitor_link");
   const canSeeLink = roleSlug === "occupants";
 
+  // Safe values for pagination
+  const safeCurrentPage = Number(currentPage) || 1;
+  const safeTotalPages = Number(totalPages) || 1;
+
+  // Safely call setSelectedVisitorIds only if it's a function
+  const safeSetSelected = (updater: (prev: string[]) => string[]) => {
+    if (typeof setSelectedVisitorIds === "function") {
+      setSelectedVisitorIds(updater);
+    }
+  };
+
   const toggleSelect = (id: string) => {
-    setSelectedVisitorIds((prev) =>
+    safeSetSelected((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   };
 
   const toggleSelectAll = () => {
-    if (selectedVisitorIds.length === visitors.length) {
-      setSelectedVisitorIds([]);
-    } else {
-      setSelectedVisitorIds(visitors.map((v) => v._id));
-    }
+    safeSetSelected((prev) =>
+      prev.length === visitors.length ? [] : visitors.map((v) => v._id),
+    );
   };
 
   const handleCopyLink = async (id: string) => {
@@ -106,10 +128,34 @@ export default function BulkVisitorsList({
         },
       );
       const data = await res.json();
-      await Clipboard.setStringAsync(data.bulkVisitorLink);
-      toast("Link copied");
+      if (data.bulkVisitorLink) {
+        await Clipboard.setStringAsync(data.bulkVisitorLink);
+        toast("Link copied");
+      } else {
+        toast("No link available");
+      }
     } catch {
       toast("Failed to copy link");
+    }
+  };
+
+  // Safe date formatting
+  const formatDate = (dateStr?: string) =>
+    dateStr ? new Date(dateStr).toLocaleDateString() : "";
+
+  // Pagination handlers (same style as VisitorsList)
+  const handlePrevPage = () => {
+    if (typeof onPageChange === "function" && safeCurrentPage > 1) {
+      onPageChange(safeCurrentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (
+      typeof onPageChange === "function" &&
+      safeCurrentPage < safeTotalPages
+    ) {
+      onPageChange(safeCurrentPage + 1);
     }
   };
 
@@ -154,11 +200,16 @@ export default function BulkVisitorsList({
             visitors.map((v) => {
               const isSelected = selectedVisitorIds.includes(v._id);
 
-              const displayDate = v.isMultipleDays
-                ? `${new Date(v.fromDate!).toLocaleDateString()} - ${new Date(
-                    v.toDate!,
-                  ).toLocaleDateString()}`
-                : new Date(v.visitDate!).toLocaleDateString();
+              // Build display date safely
+              let displayDate = "";
+              if (v.isMultipleDays) {
+                displayDate =
+                  v.fromDate && v.toDate
+                    ? `${formatDate(v.fromDate)} - ${formatDate(v.toDate)}`
+                    : "";
+              } else {
+                displayDate = v.visitDate ? formatDate(v.visitDate) : "";
+              }
 
               return (
                 <View
@@ -180,7 +231,7 @@ export default function BulkVisitorsList({
                   <Text style={styles.td}>
                     {v.isForEntireApartment
                       ? "Entire Apartment"
-                      : `${v.flatName}-${v.blockName}`}
+                      : `${v.flatName || ""}-${v.blockName || ""}`}
                   </Text>
                   <Text style={styles.td}>{v.eventPurpose}</Text>
                   <Text style={styles.td}>{v.expectedCount}</Text>
@@ -219,24 +270,36 @@ export default function BulkVisitorsList({
         </View>
       </ScrollView>
 
-      {/* PAGINATION */}
-      <View style={styles.pagination}>
-        <TouchableOpacity
-          disabled={currentPage === 1}
-          onPress={() => onPageChange(currentPage - 1)}
-        >
-          <Text>{"<<"}</Text>
-        </TouchableOpacity>
+      {/* PAGINATION - Updated to match VisitorsList style */}
+      {safeTotalPages > 1 && (
+        <View style={styles.pagination}>
+          <Pressable
+            style={[
+              styles.pageButton,
+              safeCurrentPage === 1 && styles.disabledButton,
+            ]}
+            onPress={handlePrevPage}
+            disabled={safeCurrentPage === 1}
+          >
+            <Text style={styles.buttonText}>Previous</Text>
+          </Pressable>
 
-        <Text style={styles.pageNo}>{currentPage}</Text>
+          <Text style={styles.pageInfo}>
+            Page {safeCurrentPage} of {safeTotalPages}
+          </Text>
 
-        <TouchableOpacity
-          disabled={currentPage === totalPages}
-          onPress={() => onPageChange(currentPage + 1)}
-        >
-          <Text>{">>"}</Text>
-        </TouchableOpacity>
-      </View>
+          <Pressable
+            style={[
+              styles.pageButton,
+              safeCurrentPage === safeTotalPages && styles.disabledButton,
+            ]}
+            onPress={handleNextPage}
+            disabled={safeCurrentPage === safeTotalPages}
+          >
+            <Text style={styles.buttonText}>Next</Text>
+          </Pressable>
+        </View>
+      )}
 
       {/* NOTES MODAL */}
       <Modal visible={noteModal.open} transparent animationType="fade">
@@ -258,7 +321,7 @@ export default function BulkVisitorsList({
   );
 }
 
-// ---------- styles ----------
+// ---------- styles (updated pagination styles) ----------
 const CELL_WIDTH = 140;
 
 const styles = StyleSheet.create({
@@ -303,18 +366,35 @@ const styles = StyleSheet.create({
     padding: 24,
     color: "#6b7280",
   },
+  // Pagination styles (copied from VisitorsList)
   pagination: {
     flexDirection: "row",
-    justifyContent: "center",
-    gap: 16,
-    paddingVertical: 16,
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
+    backgroundColor: "#f8fafc",
   },
-  pageNo: {
+  pageButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     backgroundColor: "#1eb88c",
+    borderRadius: 8,
+    minWidth: 90,
+  },
+  disabledButton: {
+    backgroundColor: "#cbd5e1",
+  },
+  buttonText: {
     color: "#fff",
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    fontWeight: "700",
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  pageInfo: {
+    fontSize: 14,
+    color: "#374151",
+    fontWeight: "600",
   },
   modalOverlay: {
     flex: 1,

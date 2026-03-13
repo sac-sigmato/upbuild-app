@@ -7,7 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  View
+  View,
 } from "react-native";
 import { getMyPermissions } from "../../utils/getMyPermissions";
 import OccupantResponseModal from "./OccupantResponseModal";
@@ -16,7 +16,7 @@ import VisitorDetailsModal from "./VisitorDetailsModal";
 import VisitorTable from "./VisitorTable";
 
 interface VisitorsListProps {
-  visitors: any[];
+  visitors?: any[]; // make optional, default to []
   loading: boolean;
   currentPage: number;
   totalPages: number;
@@ -36,7 +36,7 @@ interface VisitorsListProps {
 }
 
 export default function VisitorsList({
-  visitors,
+  visitors = [], // ← default to empty array
   loading,
   currentPage,
   totalPages,
@@ -86,21 +86,34 @@ export default function VisitorsList({
       ? canRespondProp
       : roleSlug === "occupants";
 
+  /* ---------- SAFE VALUES ---------- */
+  const safeVisitors = Array.isArray(visitors) ? visitors : [];
+  const safeCurrentPage = Number(currentPage) || 1;
+  const safeTotalPages = Number(totalPages) || 1;
+
   /* ---------- PAGINATION ---------- */
   const handleNextPage = () => {
-    if (currentPage < totalPages) onPageChange(currentPage + 1);
+    if (
+      typeof onPageChange === "function" &&
+      safeCurrentPage < safeTotalPages
+    ) {
+      onPageChange(safeCurrentPage + 1);
+    }
   };
 
   const handlePrevPage = () => {
-    if (currentPage > 1) onPageChange(currentPage - 1);
+    if (typeof onPageChange === "function" && safeCurrentPage > 1) {
+      onPageChange(safeCurrentPage - 1);
+    }
   };
 
   const handleStatusChange = () => {
     fetchVisitors?.();
   };
 
-  /* ---------- LOADING ---------- */
-  if (loading && currentPage === 1) {
+  /* ---------- LOADING / EMPTY STATES ---------- */
+  // Show loader only when we have no data at all
+  if (loading && safeVisitors.length === 0) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#1eb88c" />
@@ -109,8 +122,7 @@ export default function VisitorsList({
     );
   }
 
-  /* ---------- EMPTY ---------- */
-  if (!loading && visitors.length === 0) {
+  if (!loading && safeVisitors.length === 0) {
     return (
       <ScrollView
         style={{ flex: 1 }}
@@ -124,12 +136,11 @@ export default function VisitorsList({
 
   /* ---------- MAIN ---------- */
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={refreshControl} // ✅ PULL TO REFRESH
-    >
+    // If VisitorTable internally uses a FlatList, consider removing the outer ScrollView
+    // to avoid nested scrollables. For now we keep it for pull‑to‑refresh support.
+    <ScrollView style={styles.container} refreshControl={refreshControl}>
       <VisitorTable
-        visitors={visitors}
+        visitors={safeVisitors}
         loading={loading}
         selectedVisitorIds={selectedVisitorIds}
         setSelectedVisitorIds={setSelectedVisitorIds}
@@ -144,30 +155,30 @@ export default function VisitorsList({
       />
 
       {/* ---------- PAGINATION ---------- */}
-      {totalPages > 1 && (
+      {safeTotalPages > 1 && (
         <View style={styles.pagination}>
           <Pressable
             style={[
               styles.pageButton,
-              currentPage === 1 && styles.disabledButton,
+              safeCurrentPage === 1 && styles.disabledButton,
             ]}
             onPress={handlePrevPage}
-            disabled={currentPage === 1}
+            disabled={safeCurrentPage === 1}
           >
             <Text style={styles.buttonText}>Previous</Text>
           </Pressable>
 
           <Text style={styles.pageInfo}>
-            Page {currentPage} of {totalPages}
+            Page {safeCurrentPage} of {safeTotalPages}
           </Text>
 
           <Pressable
             style={[
               styles.pageButton,
-              currentPage === totalPages && styles.disabledButton,
+              safeCurrentPage === safeTotalPages && styles.disabledButton,
             ]}
             onPress={handleNextPage}
-            disabled={currentPage === totalPages}
+            disabled={safeCurrentPage === safeTotalPages}
           >
             <Text style={styles.buttonText}>Next</Text>
           </Pressable>

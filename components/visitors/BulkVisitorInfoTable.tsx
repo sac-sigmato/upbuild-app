@@ -4,11 +4,10 @@ import React, { useState } from "react";
 import {
   Alert,
   FlatList,
-  Image,
   Modal,
   StyleSheet,
   Text,
-  View,
+  View
 } from "react-native";
 import { api_url } from "../../utils/apiLocalhost"; // adjust path
 import OccupantBulkResponseModal from "./bulkVisitor/fillForm/OccupantBulkResponseModal"; // implement RN modal
@@ -152,13 +151,13 @@ export default function BulkVisitorInfoTable({
           </View>
 
           {/* RIGHT : QR */}
-          <View style={styles.qrContainer}>
+          {/* <View style={styles.qrContainer}>
             {item.qrCode ? (
               <Image source={{ uri: item.qrCode }} style={styles.qr} />
             ) : (
               <Text style={styles.noQr}>No QR</Text>
             )}
-          </View>
+          </View> */}
         </View>
       </View>
     );

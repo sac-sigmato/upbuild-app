@@ -26,7 +26,6 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 // ✅ ADD BULK VISITORS SCREEN (NO REMOVAL)
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { QrCode } from "lucide-react-native";
 import BulkVisitors from "./bulkVisit";
 
 // ---------- Helper Toast ----------
@@ -294,7 +293,7 @@ export default function VisitorsPageScreen() {
               </Text>
             </Pressable>
 
-            {roleSlug === "security" && (
+            {/* {roleSlug === "security" && (
               <Pressable
                 style={styles.scanBtn}
                 onPress={() => router.push("/visitors/scan")}
@@ -302,10 +301,10 @@ export default function VisitorsPageScreen() {
                 <QrCode size={18} color="#fff" />
                 <Text style={styles.scanText}>Scan Visitor QR</Text>
               </Pressable>
-            )}
+            )} */}
           </View>
 
-          <Pressable
+          {/* <Pressable
             onPress={() => {
               if (activeTab === "visitors") {
                 handleRefresh();
@@ -317,7 +316,7 @@ export default function VisitorsPageScreen() {
             <Text style={{ color: "#1eb88c", fontWeight: "600" }}>
               {refreshing ? "Refreshing..." : "Refresh"}
             </Text>
-          </Pressable>
+          </Pressable> */}
         </View>
 
         {/* ---------- CONTENT ---------- */}

@@ -79,8 +79,7 @@
             "UIFileSharingEnabled": true
           }
         }
-      ],
-      "expo-barcode-scanner"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
